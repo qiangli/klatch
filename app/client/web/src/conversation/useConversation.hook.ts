@@ -4,7 +4,7 @@ import { DisplayContext } from '../context/DisplayContext'
 import { Focus, FocusDetail, Topic, Profile, Card, AssetType, AssetSource, TransformType } from 'databag-client-sdk'
 import { ContextType } from '../context/ContextType'
 import Resizer from 'react-image-file-resizer'
-import { MentionMember } from '../utils/mentions'
+import { getChannelMentionMembers, MentionMember } from '../utils/mentions'
 
 const IMAGE_SCALE_SIZE = 128 * 1024
 const GIF_TYPE = 'image/gif'
@@ -152,10 +152,8 @@ export function useConversation() {
     const subjectCards = contactCards.filter((member) => Boolean(member))
     const subjectNames = subjectCards.map((member) => (member?.name ? member.name : member?.handle))
     const unknownContacts = contactCards.length - subjectCards.length
-    const memberGuids = new Set(state.detail?.members.map((member) => member.guid) || [])
-    const members = [state.profile, ...cards]
-      .filter((member): member is Profile | Card => Boolean(member && memberGuids.has(member.guid) && member.handle))
-      .map((member) => ({ handle: member.handle, name: member.name }))
+    const memberGuids = state.detail?.members.map((member) => member.guid) || []
+    const members = getChannelMentionMembers(state.profile, card || null, memberGuids, cards)
     updateState({ host, sealed, access, subject, subjectNames, unknownContacts, members, detailSet: state.detail !== undefined })
   }, [state.detail, state.cards, state.profile, state.cardId])
 

@@ -13,9 +13,9 @@ import { TbForbid, TbTrash, TbEdit, TbFlag, TbChevronLeft, TbChevronRight, TbFil
 import { useResizeDetector } from 'react-resize-detector'
 import { modals } from '@mantine/modals'
 import { sanitizeUrl } from '@braintree/sanitize-url'
-import { parseMentions } from '../utils/mentions'
+import { findMentionMember, MentionMember, parseMentions } from '../utils/mentions'
 
-export function Message({ topic, card, profile, host, currentHandle }: { topic: Topic; card: Card | null; profile: Profile | null; host: boolean; currentHandle?: string }) {
+export function Message({ topic, card, profile, host, currentHandle, mentionMembers }: { topic: Topic; card: Card | null; profile: Profile | null; host: boolean; currentHandle?: string; mentionMembers: MentionMember[] }) {
   const { state, actions } = useMessage()
   const scroll = useRef(null as HTMLDivElement | null)
   const { locked, data, created, topicId, status, transform } = topic
@@ -164,10 +164,15 @@ export function Message({ topic, card, profile, host, currentHandle }: { topic: 
       mentions.forEach((mention) => {
         segments.push(value.slice(offset, mention.start))
         const mine = mention.handle.toLocaleLowerCase() === currentHandle?.toLocaleLowerCase()
+        const known = mine || Boolean(findMentionMember(mention, mentionMembers))
         segments.push(
-          <mark key={`mention-${mentionKey++}`} className={mine ? classes.mentionMe : classes.mention}>
-            {value.slice(mention.start, mention.end)}
-          </mark>
+          known ? (
+            <mark key={`mention-${mentionKey++}`} className={mine ? classes.mentionMe : classes.mention}>
+              {value.slice(mention.start, mention.end)}
+            </mark>
+          ) : (
+            value.slice(mention.start, mention.end)
+          )
         )
         offset = mention.end
       })
@@ -175,7 +180,7 @@ export function Message({ topic, card, profile, host, currentHandle }: { topic: 
       return <span key={part.key}>{segments}</span>
     })
     setMessage(<span>{highlighted}</span>)
-  }, [text, locked, currentHandle])
+  }, [text, locked, currentHandle, mentionMembers])
 
   const [showScroll, setShowScroll] = useState(false)
   const onResize = useCallback(() => {

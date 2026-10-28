@@ -1,4 +1,4 @@
-import { findMentionMember, getMentionQuery, hasMention, insertMention, matchMentionMembers, parseMentions } from './mentions'
+import { findMentionMember, getChannelMentionMembers, getMentionQuery, hasMention, insertMention, matchMentionMembers, parseMentions } from './mentions'
 
 const members = [
   { handle: 'alice', name: 'Alice Adams' },
@@ -29,8 +29,34 @@ describe('mentions', () => {
     expect(findMentionMember(known, members)).toEqual(members[0])
     expect(findMentionMember(unknown, members)).toBeUndefined()
     expect(hasMention('@ALICE, hello', 'alice')).toBe(true)
+    expect(hasMention('@ALICE, hello', 'alice', members)).toBe(true)
+    expect(hasMention('@ALICE, hello', 'alice', members.slice(1))).toBe(false)
     expect(hasMention('person@alice.test', 'alice')).toBe(false)
     expect(hasMention(null, 'alice')).toBe(false)
+  })
+
+  test('builds owner-view candidates from all cards and excludes the owner', () => {
+    const owner = { guid: 'owner-guid', handle: 'alice', name: 'Alice Adams' }
+    const cards = [
+      { guid: 'bob-guid', handle: 'bob_2', name: 'Robert' },
+      { guid: 'carol-guid', handle: 'carol-dev', name: 'Carol' },
+      { guid: 'owner-copy', handle: 'ALICE', name: 'Duplicate owner' },
+    ]
+
+    expect(getChannelMentionMembers(owner, null, ['bob-guid'], cards)).toEqual(members.slice(1))
+  })
+
+  test('builds member-view candidates from the channel owner and other members', () => {
+    const viewer = { guid: 'bob-guid', handle: 'bob_2', name: 'Robert' }
+    const owner = { guid: 'owner-guid', handle: 'alice', name: 'Alice Adams' }
+    const cards = [
+      owner,
+      viewer,
+      { guid: 'carol-guid', handle: 'carol-dev', name: 'Carol' },
+      { guid: 'outsider-guid', handle: 'dave', name: 'Dave' },
+    ]
+
+    expect(getChannelMentionMembers(viewer, owner, ['bob-guid', 'carol-guid'], cards)).toEqual([members[0], members[2]])
   })
 
   test('finds an active query and inserts a complete token', () => {

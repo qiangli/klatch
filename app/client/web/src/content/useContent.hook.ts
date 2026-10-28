@@ -4,7 +4,7 @@ import { DisplayContext } from '../context/DisplayContext'
 import { ContextType } from '../context/ContextType'
 import { Channel, Card, Profile, Config } from 'databag-client-sdk'
 import { notes, unknown, iii_group, iiii_group, iiiii_group, group } from '../constants/Icons'
-import { hasMention } from '../utils/mentions'
+import { getChannelMentionMembers, hasMention } from '../utils/mentions'
 
 type ChannelParams = {
   cardId: string
@@ -65,12 +65,12 @@ export function useContent() {
     const channels = state.sorted.map((channel) => {
       const { cardId, channelId, unread, sealed, members, data, lastTopic } = channel
       const contacts = [] as (Card | undefined)[]
+      const owner = cardId ? state.cards.find((contact) => contact.cardId === cardId) : undefined
       if (cardId) {
-        const card = state.cards.find((contact) => contact.cardId === cardId)
-        if (!card || card.blocked) {
+        if (!owner || owner.blocked) {
           return null
         }
-        contacts.push(card)
+        contacts.push(owner)
       }
       const guests = members.filter((contact) => contact.guid !== state.guid)
       const guestCards = guests
@@ -147,7 +147,14 @@ export function useContent() {
       const message = getMessage()
       const imageUrl = selectImage()
 
-      const mentioned = unread && hasMention(message, state.handle)
+      const mentionMembers = getChannelMentionMembers(
+        state.handle ? { guid: state.guid, handle: state.handle } : null,
+        owner || null,
+        members.map((member) => member.guid),
+        state.cards
+      )
+      const knownMentionMembers = state.handle ? [{ handle: state.handle }, ...mentionMembers] : mentionMembers
+      const mentioned = unread && hasMention(message, state.handle, knownMentionMembers)
       return { cardId, channelId, sealed, focused, hosted, unread, imageUrl, subject, message, mentioned }
     })
 

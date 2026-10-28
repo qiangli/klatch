@@ -163,7 +163,7 @@ export function Conversation({ openDetails }: { openDetails: () => void }) {
     const { host } = state
     const card = state.cards.get(topic.guid) || null
     const profile = state.profile?.guid === topic.guid ? state.profile : null
-    return <Message key={idx} topic={topic} card={card} profile={profile} host={host} currentHandle={state.profile?.handle} />
+    return <Message key={idx} topic={topic} card={card} profile={profile} host={host} currentHandle={state.profile?.handle} mentionMembers={state.members} />
   })
 
   const media = state.assets.map((asset, index: number) => {
