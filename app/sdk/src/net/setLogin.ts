@@ -24,6 +24,7 @@ export async function setLogin(
   const auth = encode(`${username}:${password}`);
   const headers = new Headers();
   headers.append('Authorization', 'Basic ' + auth);
+  headers.append('Credentials', 'Basic ' + auth);
   const login = await fetchWithTimeout(endpoint, {
     method: 'POST',
     headers,

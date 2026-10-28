@@ -3,6 +3,7 @@ import { DisplayContext } from '../context/DisplayContext'
 import { AppContext } from '../context/AppContext'
 import { ContextType } from '../context/ContextType'
 import { useLocation } from 'react-router-dom'
+import { appNode } from '../utils/appPath'
 
 export function useAccess() {
   const debounceAvailable = useRef(setTimeout(() => {}, 0))
@@ -46,8 +47,8 @@ export function useAccess() {
       updateState({ mode: 'account' })
     }
 
-    const { protocol, host } = location
-    updateState({ host, secure: protocol === 'https:' })
+    const { protocol } = location
+    updateState({ host: appNode(window.location.host, window.location.pathname), secure: protocol === 'https:' })
   }, [])
 
   useEffect(() => {

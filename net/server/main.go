@@ -29,7 +29,7 @@ func main() {
     } else if args[i] == "-w" {
       webApp = args[i + 1]
     } else if args[i] == "-p" {
-      port = ":" + args[i + 1]
+      port = listenAddress(args[i + 1])
     } else if args[i] == "-c" {
       cert = args[i + 1]
     } else if args[i] == "-k" {
@@ -82,10 +82,21 @@ func main() {
   methods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"})
 
   if cert != "" && key != "" {
-    log.Printf("using args:" + " -s " + storePath + " -w " + webApp + " -p " + port[1:] + " -c " + cert + " -k " + key + " -t " + transformPath)
+    log.Printf("using args:" + " -s " + storePath + " -w " + webApp + " -p " + port + " -c " + cert + " -k " + key + " -t " + transformPath)
     log.Fatal(http.ListenAndServeTLS(port, cert, key, handlers.CORS(origins, headers, methods)(router)))
   } else {
-    log.Printf("using args:" + " -s " + storePath + " -w " + webApp + " -p " + port[1:] + " -t " + transformPath)
+    log.Printf("using args:" + " -s " + storePath + " -w " + webApp + " -p " + port + " -t " + transformPath)
     log.Fatal(http.ListenAndServe(port, handlers.CORS(origins, headers, methods)(router)))
   }
+}
+
+func listenAddress(value string) string {
+  if len(value) > 0 && value[0] == ':' { return value }
+  if containsColon(value) { return value }
+  return ":" + value
+}
+
+func containsColon(value string) bool {
+  for _, c := range value { if c == ':' { return true } }
+  return false
 }

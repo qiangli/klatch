@@ -16,6 +16,7 @@ require (
 	github.com/theckman/go-securerandom v0.1.1
 	github.com/valyala/fastjson v1.6.4
 	golang.org/x/crypto v0.40.0
+	golang.org/x/image v0.27.0
 	gorm.io/driver/sqlite v1.5.5
 	gorm.io/gorm v1.25.9
 )
