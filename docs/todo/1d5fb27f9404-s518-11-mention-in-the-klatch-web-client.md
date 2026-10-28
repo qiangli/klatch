@@ -3,15 +3,20 @@ id: 1d5fb27f9404
 kind: feature
 title: S518.11 @mention in the Klatch web client
 seq: 2819
-status: todo
+status: done
 priority: p0
 labels:
     - klatch
 created: 2026-10-28T05:42:56.951063Z
+weave: 4
 due: 2026-10-31T00:00:00Z
+assignee: codex-gpt5.6-sol
 sprint: 518
 sprint_id: bbe9153b-b299-5be8-8ef8-215ad002deb9
 sprint_title: 'Klatch MVP: rebranded Databag chat server + web + federation on one satellite (replaces Matrix), due Sat 10-31'
+closed: 2026-10-28T06:39:56.592435Z
+resolution: fixed
+closed_by: codex-gpt5.6-sol-d
 ---
 
 S518.11 @mention in the Klatch web client (app/client/web).

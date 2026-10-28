@@ -3,17 +3,20 @@ id: 529c4c5bb55e
 kind: feature
 title: S518.3 fork qiangli/klatch from a pinned Databag tag and MVP rebrand with credits
 seq: 2811
-status: assigned
+status: done
 priority: p0
 labels:
     - klatch
 created: 2026-10-28T05:42:54.857995Z
-weave: 1
+weave: 3
 due: 2026-10-31T00:00:00Z
 assignee: claude-sonnet5.5
 sprint: 518
 sprint_id: bbe9153b-b299-5be8-8ef8-215ad002deb9
 sprint_title: 'Klatch MVP: rebranded Databag chat server + web + federation on one satellite (replaces Matrix), due Sat 10-31'
+closed: 2026-10-28T06:18:07.332346Z
+resolution: fixed
+closed_by: claude-sonnet5.5-c
 ---
 
 S518.3 Rebrand the Databag fork as Klatch (MVP) with full credit to the author.
