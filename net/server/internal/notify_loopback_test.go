@@ -2,6 +2,8 @@ package databag
 
 import (
 	"databag/internal/store"
+	"encoding/json"
+	"github.com/gorilla/websocket"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -34,6 +36,8 @@ func TestSameNodeChannelNotificationBypassesLimitedPrefixProxy(t *testing.T) {
 			}
 			localNotifications.Add(1)
 			SetPushEvent(w, r)
+		case "/status":
+			Status(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -46,7 +50,7 @@ func TestSameNodeChannelNotificationBypassesLimitedPrefixProxy(t *testing.T) {
 	forward := httputil.NewSingleHostReverseProxy(backendURL)
 	var frontRequests atomic.Int32
 	front := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if frontRequests.Add(1) > 1 {
+		if r.URL.Path != "/prefix/status" && frontRequests.Add(1) > 1 {
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
 		}
@@ -96,7 +100,44 @@ func TestSameNodeChannelNotificationBypassesLimitedPrefixProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	wsURL := "ws://" + strings.TrimPrefix(front.URL, "http://") + "/prefix/status?mode=ring"
+	memberWS, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer memberWS.Close()
+	announce, _ := json.Marshal(Announce{AppToken: bToken})
+	if err := memberWS.WriteMessage(websocket.TextMessage, announce); err != nil {
+		t.Fatal(err)
+	}
+	memberWS.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_, initial, err := memberWS.ReadMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var initialActivity Activity
+	if err := json.Unmarshal(initial, &initialActivity); err != nil {
+		t.Fatal(err)
+	}
+	lastCardRevision := initialActivity.Revision.Card
+	awaitCardRevision := func(label string) {
+		t.Helper()
+		memberWS.SetReadDeadline(time.Now().Add(3 * time.Second))
+		for {
+			_, message, err := memberWS.ReadMessage()
+			if err != nil {
+				t.Fatalf("%s: member websocket did not receive revision: %v", label, err)
+			}
+			var activity Activity
+			if err := json.Unmarshal(message, &activity); err != nil {
+				t.Fatal(err)
+			}
+			if activity.Revision != nil && activity.Revision.Card > lastCardRevision {
+				lastCardRevision = activity.Revision.Card
+				return
+			}
+		}
+	}
 	for _, want := range []int{http.StatusOK, http.StatusTooManyRequests} {
 		resp, err := http.Get(front.URL + "/prefix/health")
 		if err != nil {
@@ -122,6 +163,61 @@ func TestSameNodeChannelNotificationBypassesLimitedPrefixProxy(t *testing.T) {
 	var channel Channel
 	if err := APITestMsg(AddChannel, http.MethodPost, "/content/channels", nil, params, APPTokenAgent, aToken, &channel, nil); err != nil {
 		t.Fatal(err)
+	}
+	awaitCardRevision("group post")
+	groupChannelID := channel.ID
+	groupVars := &map[string]string{"channelID": groupChannelID}
+	var groupTopic Topic
+	if err := APITestMsg(AddChannelTopic, http.MethodPost, "/content/channels/{channelID}/topics?confirm=true",
+		groupVars, &Subject{DataType: "text", Data: "group message"}, APPTokenAgent, aToken, &groupTopic, nil); err != nil {
+		t.Fatal(err)
+	}
+	awaitCardRevision("group message")
+	direct := &ChannelParams{DataType: "note", Data: "direct message", Cards: []string{aCardID}}
+	if err := APITestMsg(AddChannel, http.MethodPost, "/content/channels", nil, direct, APPTokenAgent, aToken, &channel, nil); err != nil {
+		t.Fatal(err)
+	}
+	awaitCardRevision("direct message")
+	directChannelID := channel.ID
+	directVars := &map[string]string{"channelID": directChannelID}
+	var directTopic Topic
+	if err := APITestMsg(AddChannelTopic, http.MethodPost, "/content/channels/{channelID}/topics?confirm=true",
+		directVars, &Subject{DataType: "text", Data: "private message"}, APPTokenAgent, aToken, &directTopic, nil); err != nil {
+		t.Fatal(err)
+	}
+	awaitCardRevision("private message")
+	var memberCard store.Card
+	if err := store.DB.Where("account_id = ? AND guid = ?", bGUID, aGUID).First(&memberCard).Error; err != nil {
+		t.Fatal(err)
+	}
+	var received []Channel
+	if err := APITestMsg(GetChannels, http.MethodGet, "/content/channels", nil, nil,
+		APPTokenContact, aGUID+"."+memberCard.OutToken, &received, nil); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, item := range received {
+		if item.Data != nil && item.Data.ChannelDetail != nil {
+			seen[item.Data.ChannelDetail.Data] = true
+		}
+	}
+	if !seen["group post"] || !seen["direct message"] {
+		t.Fatalf("member pull after live revision: group=%t direct=%t", seen["group post"], seen["direct message"])
+	}
+	for _, item := range []struct {
+		vars *map[string]string
+		id   string
+		want string
+	}{{groupVars, groupTopic.ID, "group message"}, {directVars, directTopic.ID, "private message"}} {
+		(*item.vars)["topicID"] = item.id
+		var topic Topic
+		if err := APITestMsg(GetChannelTopic, http.MethodGet, "/content/channels/{channelID}/topics/{topicID}",
+			item.vars, nil, APPTokenContact, aGUID+"."+memberCard.OutToken, &topic, nil); err != nil {
+			t.Fatal(err)
+		}
+		if topic.Data == nil || topic.Data.TopicDetail == nil || topic.Data.TopicDetail.Data != item.want {
+			t.Fatalf("member pulled incorrect topic for %s: %+v", item.want, topic.Data)
+		}
 	}
 	var author store.Account
 	if err := store.DB.Where("guid = ?", aGUID).First(&author).Error; err != nil {

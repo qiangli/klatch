@@ -1,7 +1,14 @@
 FROM node:22-alpine AS node
-WORKDIR /app
+WORKDIR /app/sdk
+
+COPY ./app/sdk/package.json ./app/sdk/yarn.lock ./
+RUN --mount=type=cache,target=/root/.yarn YARN_CACHE_FOLDER=/root/.yarn \
+  yarn --frozen-lockfile
+COPY ./app/sdk/ ./
+RUN yarn build
 
 # Download the node dependencies first before adding the rest for caching
+WORKDIR /app/client/web
 COPY ./app/client/web/package.json ./app/client/web/yarn.lock ./
 RUN --mount=type=cache,target=/root/.yarn YARN_CACHE_FOLDER=/root/.yarn \
   yarn --frozen-lockfile
@@ -37,7 +44,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   if [ -n "${DATABAG_GOOS}" ]; then GOOS=${DATABAG_GOOS}; fi; \
   CGO_ENABLED=1 go build -o databag .
 
-COPY --from=node /app/dist /app/databag/net/web/build
+COPY --from=node /app/client/web/dist /app/databag/net/web/build
 
 ENV DEV=0
 ENV ADMIN=password
