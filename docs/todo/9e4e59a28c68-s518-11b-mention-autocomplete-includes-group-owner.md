@@ -3,15 +3,20 @@ id: 9e4e59a28c68
 kind: bug
 title: S518.11b @mention autocomplete includes group owner for members
 seq: 2823
-status: todo
+status: done
 priority: p0
 labels:
     - klatch
 created: 2026-10-28T10:22:21.46136Z
+weave: 8
 due: 2026-10-31T00:00:00Z
+assignee: codex-gpt5.6-sol
 sprint: 518
 sprint_id: bbe9153b-b299-5be8-8ef8-215ad002deb9
 sprint_title: 'Klatch MVP: rebranded Databag chat server + web + federation on one satellite (replaces Matrix), due Sat 10-31'
+closed: 2026-10-28T10:28:08.477272Z
+resolution: fixed
+closed_by: codex-gpt5.6-sol-h
 ---
 
 S518.11b @mention autocomplete must include the group OWNER for members (bug found by live E2E).

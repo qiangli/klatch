@@ -3,15 +3,20 @@ id: 7e07b2665206
 kind: bug
 title: S518.6f Live push to members unreliable (reload needed)
 seq: 2824
-status: todo
+status: done
 priority: p0
 labels:
     - klatch
 created: 2026-10-28T10:22:21.567645Z
+weave: 9
 due: 2026-10-31T00:00:00Z
+assignee: codex-gpt6-sol
 sprint: 518
 sprint_id: bbe9153b-b299-5be8-8ef8-215ad002deb9
 sprint_title: 'Klatch MVP: rebranded Databag chat server + web + federation on one satellite (replaces Matrix), due Sat 10-31'
+closed: 2026-10-28T10:32:58.061224Z
+resolution: fixed
+closed_by: codex-gpt6-sol-i
 ---
 
 S518.6f Live push: members sometimes see new group messages/DMs only after a reload (found by live E2E on v1.2.2).
