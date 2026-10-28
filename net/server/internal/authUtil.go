@@ -15,7 +15,7 @@ import (
 func AccountLogin(r *http.Request) (*store.Account, error) {
 
 	// extract request auth
-	username, password, ok := r.BasicAuth()
+	username, password, ok := requestBasicAuth(r)
 	if !ok || username == "" || password == "" {
 		return nil, errors.New("invalid login")
 	}
@@ -32,6 +32,17 @@ func AccountLogin(r *http.Request) (*store.Account, error) {
 	}
 
 	return account, nil
+}
+
+// requestBasicAuth accepts the standard header and Credentials when a proxy
+// removes Authorization.
+func requestBasicAuth(r *http.Request) (string, string, bool) {
+	if username, password, ok := r.BasicAuth(); ok {
+		return username, password, true
+	}
+	copy := r.Clone(r.Context())
+	copy.Header.Set("Authorization", r.Header.Get("Credentials"))
+	return copy.BasicAuth()
 }
 
 //BearerAccountToken retrieves AccountToken object specified by authorization header
@@ -350,6 +361,9 @@ func BasicCredentials(r *http.Request) (string, []byte, error) {
 
 	// parse bearer authentication
 	auth := r.Header.Get("Credentials")
+	if auth == "" {
+		auth = r.Header.Get("Authorization")
+	}
 	token := strings.TrimSpace(strings.TrimPrefix(auth, "Basic"))
 
 	// decode basic auth

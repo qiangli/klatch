@@ -116,6 +116,7 @@ func sendRemoteNotification(notification *store.Notification) {
       return
     }
     req.Header.Set("Content-Type", "application/json; charset=utf-8")
+    setFederationHeaders(req)
     client := &http.Client{}
     resp, err := client.Do(req)
     if err != nil {
@@ -137,6 +138,7 @@ func sendRemoteNotification(notification *store.Notification) {
       return
     }
     req.Header.Set("Content-Type", "application/json; charset=utf-8")
+    setFederationHeaders(req)
     client := &http.Client{}
     resp, err := client.Do(req)
     if err != nil {
@@ -283,4 +285,9 @@ func SetContactPushNotification(card *store.Card, event string) {
 
 func contactNotificationURL(node, module, guid, token string) string {
   return "https://" + strings.TrimRight(node, "/") + "/contact/" + module + "?contact=" + guid + "." + token
+}
+
+func setFederationHeaders(req *http.Request) {
+	req.Header.Set("Origin", req.URL.Scheme+"://"+req.URL.Host)
+	req.Header.Set("Authorization", "Bearer klatch-federation")
 }
