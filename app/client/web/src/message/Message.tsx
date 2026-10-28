@@ -9,12 +9,13 @@ import { VideoAsset } from './videoAsset/VideoAsset'
 import { BinaryAsset } from './binaryAsset/BinaryAsset'
 import type { MediaAsset } from '../conversation/Conversation'
 import { useMessage } from './useMessage.hook'
-import { TbForbid, TbTrash, TbEdit, TbFlag, TbChevronLeft, TbChevronRight, TbFileAlert } from "react-icons/tb";
+import { TbForbid, TbTrash, TbEdit, TbFlag, TbChevronLeft, TbChevronRight, TbFileAlert } from 'react-icons/tb'
 import { useResizeDetector } from 'react-resize-detector'
 import { modals } from '@mantine/modals'
 import { sanitizeUrl } from '@braintree/sanitize-url'
+import { parseMentions } from '../utils/mentions'
 
-export function Message({ topic, card, profile, host }: { topic: Topic; card: Card | null; profile: Profile | null; host: boolean }) {
+export function Message({ topic, card, profile, host, currentHandle }: { topic: Topic; card: Card | null; profile: Profile | null; host: boolean; currentHandle?: string }) {
   const { state, actions } = useMessage()
   const scroll = useRef(null as HTMLDivElement | null)
   const { locked, data, created, topicId, status, transform } = topic
@@ -147,8 +148,34 @@ export function Message({ topic, card, profile, host }: { topic: Topic; card: Ca
     if (plain) {
       clickable.push(<span key={parsed.length}>{plain}</span>)
     }
-    setMessage(<span>{clickable}</span>)
-  }, [text, locked])
+    const linkedText = clickable.length ? clickable : [<span key="text">{text}</span>]
+    let mentionKey = 0
+    const highlighted = linkedText.map((part) => {
+      if (part.type !== 'span' || typeof part.props.children !== 'string') {
+        return part
+      }
+      const value = part.props.children
+      const mentions = parseMentions(value)
+      if (!mentions.length) {
+        return part
+      }
+      const segments = []
+      let offset = 0
+      mentions.forEach((mention) => {
+        segments.push(value.slice(offset, mention.start))
+        const mine = mention.handle.toLocaleLowerCase() === currentHandle?.toLocaleLowerCase()
+        segments.push(
+          <mark key={`mention-${mentionKey++}`} className={mine ? classes.mentionMe : classes.mention}>
+            {value.slice(mention.start, mention.end)}
+          </mark>
+        )
+        offset = mention.end
+      })
+      segments.push(value.slice(offset))
+      return <span key={part.key}>{segments}</span>
+    })
+    setMessage(<span>{highlighted}</span>)
+  }, [text, locked, currentHandle])
 
   const [showScroll, setShowScroll] = useState(false)
   const onResize = useCallback(() => {

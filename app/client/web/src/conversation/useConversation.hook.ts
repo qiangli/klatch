@@ -4,6 +4,7 @@ import { DisplayContext } from '../context/DisplayContext'
 import { Focus, FocusDetail, Topic, Profile, Card, AssetType, AssetSource, TransformType } from 'databag-client-sdk'
 import { ContextType } from '../context/ContextType'
 import Resizer from 'react-image-file-resizer'
+import { MentionMember } from '../utils/mentions'
 
 const IMAGE_SCALE_SIZE = 128 * 1024
 const GIF_TYPE = 'image/gif'
@@ -117,6 +118,7 @@ export function useConversation() {
     textSizeSet: false,
     progress: 0,
     offsync: false,
+    members: [] as MentionMember[],
   })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -150,7 +152,11 @@ export function useConversation() {
     const subjectCards = contactCards.filter((member) => Boolean(member))
     const subjectNames = subjectCards.map((member) => (member?.name ? member.name : member?.handle))
     const unknownContacts = contactCards.length - subjectCards.length
-    updateState({ host, sealed, access, subject, subjectNames, unknownContacts, detailSet: state.detail !== undefined })
+    const memberGuids = new Set(state.detail?.members.map((member) => member.guid) || [])
+    const members = [state.profile, ...cards]
+      .filter((member): member is Profile | Card => Boolean(member && memberGuids.has(member.guid) && member.handle))
+      .map((member) => ({ handle: member.handle, name: member.name }))
+    updateState({ host, sealed, access, subject, subjectNames, unknownContacts, members, detailSet: state.detail !== undefined })
   }, [state.detail, state.cards, state.profile, state.cardId])
 
   useEffect(() => {
@@ -188,7 +194,7 @@ export function useConversation() {
         updateState({ detail, cardId })
       }
       const setOffsync = (offsync: boolean) => {
-        updateState({ offsync });
+        updateState({ offsync })
       }
       updateState({ assets: [], message: '', topics: [], loaded: false })
       focus.addTopicListener(setTopics)

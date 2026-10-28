@@ -151,9 +151,58 @@
     padding-right: 32px;
   }
 
-  .message {
-    width: calc(100% - 32px);
+  .composer {
+    position: relative;
     margin: 16px;
+  }
+
+  .message {
+    width: 100%;
+  }
+
+  .mentionMenu {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 4px);
+    width: min(360px, 100%);
+    max-height: 240px;
+    overflow-y: auto;
+    z-index: 10;
+    padding: 4px;
+    border: 1px solid var(--mantine-color-text-7);
+    border-radius: 6px;
+    background: var(--mantine-color-body);
+    box-shadow: var(--mantine-shadow-md);
+  }
+
+  .mentionOption,
+  .mentionSelected {
+    display: flex;
+    align-items: baseline;
+    width: 100%;
+    gap: 10px;
+    padding: 7px 9px;
+    border: 0;
+    border-radius: 4px;
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .mentionSelected {
+    background: var(--mantine-color-surface-3);
+  }
+
+  .mentionHandle {
+    font-weight: 700;
+  }
+
+  .mentionName {
+    color: var(--mantine-color-dimmed);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .controls {
