@@ -3,15 +3,20 @@ id: de7df8cb7683
 kind: bug
 title: S518.6b Klatch web login sends Credentials header (front strips Authorization)
 seq: 2821
-status: todo
+status: done
 priority: p0
 labels:
     - klatch
 created: 2026-10-28T08:23:30.703947Z
+weave: 6
 due: 2026-10-31T00:00:00Z
+assignee: codex-gpt6-sol
 sprint: 518
 sprint_id: bbe9153b-b299-5be8-8ef8-215ad002deb9
 sprint_title: 'Klatch MVP: rebranded Databag chat server + web + federation on one satellite (replaces Matrix), due Sat 10-31'
+closed: 2026-10-28T08:30:05.302652Z
+resolution: fixed
+closed_by: codex-gpt6-sol-f
 ---
 
 S518.6b (bug in S518.6a) (bug found by S518.10 live E2E): the stock Klatch web login gets 401 through the satellite because the front strips Authorization and the web app uses the PUBLISHED npm package databag-client-sdk (app/client/web/package.json "databag-client-sdk": "^0.0.44"), not this repo's app/sdk, so your earlier SDK change never reaches the browser.

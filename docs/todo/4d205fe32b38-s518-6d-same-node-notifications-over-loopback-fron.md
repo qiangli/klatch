@@ -3,15 +3,20 @@ id: 4d205fe32b38
 kind: bug
 title: S518.6d Same-node notifications over loopback (front rate limit drops them)
 seq: 2822
-status: todo
+status: done
 priority: p0
 labels:
     - klatch
 created: 2026-10-28T09:46:19.921905Z
+weave: 7
 due: 2026-10-31T00:00:00Z
+assignee: codex-gpt6-sol
 sprint: 518
 sprint_id: bbe9153b-b299-5be8-8ef8-215ad002deb9
 sprint_title: 'Klatch MVP: rebranded Databag chat server + web + federation on one satellite (replaces Matrix), due Sat 10-31'
+closed: 2026-10-28T09:56:25.240981Z
+resolution: fixed
+closed_by: codex-gpt6-sol-g
 ---
 
 S518.6d Same-node contact notifications go over loopback, not through the public front (bug found by the S518.10 live E2E).

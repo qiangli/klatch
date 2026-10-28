@@ -3,26 +3,25 @@ id: a02c87554fba
 kind: bug
 title: 'S518.6a Klatch server/web: base path, loopback bind, Go-native image transforms'
 seq: 2820
-status: todo
+status: done
 priority: p0
 labels:
     - klatch
 created: 2026-10-28T06:48:04.544794Z
+weave: 5
 due: 2026-10-31T00:00:00Z
+assignee: codex-gpt6-sol
 sprint: 518
 sprint_id: bbe9153b-b299-5be8-8ef8-215ad002deb9
 sprint_title: 'Klatch MVP: rebranded Databag chat server + web + federation on one satellite (replaces Matrix), due Sat 10-31'
+closed: 2026-10-28T08:23:39.580858Z
+resolution: fixed
+closed_by: s518-manager
 ---
 
-S518.6a Klatch server/web: serve under a URL base path, loopback bind, Go-native image transforms (deploy blockers found by the S518.2 spike).
-
-Repo: this workspace is github.com/qiangli/klatch (Databag fork; already rebranded + @mention). Deployment model (decided by the sprint manager): Klatch runs on a bashy outpost host as an app on 127.0.0.1:<port>; the cloudbox satellite publishes it at https://<satellite>/matrix/h/<host>/app/klatch/ . The outpost proxy STRIPS the /matrix/h/<host>/app/klatch prefix before forwarding (requests reach the server at root paths like /account, /contact, /content, /admin, /status websocket) and sets header X-Forwarded-Prefix=/matrix/h/<host>/app/klatch . Websockets are proxied. Read net/server/main.go, net/server/internal (notify.go builds https://<node>/contact/...), app/sdk, app/client/web (how the web app derives the server node/host and builds invite links /#/access).
-Deliver (keep each change small and rebaseable; Go tests + web build green):
-1. Loopback bind: accept `-p 127.0.0.1:7100` (host:port) as well as `-p 7100`; add a test.
-2. Base path: the web app must work when served under a sub-path. Build with a relative base (vite base './' or equivalent) so one build works at any mount; derive the API node as location.host + the mount path (the path the app was loaded from, e.g. from document base / window.location.pathname up to the app root) so SDK requests go to https://<host>/<prefix>/account etc.; invite/access links must keep the prefix. The node's federation `domain` config value may then contain a path ("sat.example/matrix/h/host/app/klatch"); make sure the server builds federation URLs as https://<domain>/contact/... without breaking on the path (domain string concatenation) and that any validation of `domain` allows a path. Add unit tests where code paths are pure.
-3. Go-native image transforms: when ImageMagick `convert` is unavailable, images must still display. Implement the image transforms (icopy, ithumb, ilg — see net/transform/*.sh and net/server/internal/transcodeUtil.go) in Go (image/jpeg, image/png, image/gif decode; golang.org/x/image/draw for resize — BSD-3) as the default for images, keeping script-based audio/video untouched (they stay disabled in the MVP). Add tests with small fixture images.
-4. Local proof on this machine (Dragon: short runs only): build the server (CGO_ENABLED=1 go build; macOS clang is fine), run it on 127.0.0.1:7100 with a temp data dir, and simulate the prefix with a tiny Go or node reverse proxy that strips /matrix/h/test/app/klatch and sets X-Forwarded-Prefix; with curl verify: admin bootstrap, account create/login, a group + text + an image upload whose ithumb/icopy assets become ready (no `convert` on PATH), and that GET <prefix>/ serves index.html whose asset URLs resolve under the prefix. Stop the server and delete temp data.
-Verification: `cd net/server && go test ./...` green; `cd app/client/web && yarn --frozen-lockfile && yarn test && yarn type-check && yarn build` green; local proof transcript (commands + key outputs) in the commit message. Remove node_modules/dist before finishing.
+S518.6a REWORK (bug found by S518.10 live E2E): the stock Klatch web login gets 401 through the satellite because the front strips Authorization and the web app uses the PUBLISHED npm package databag-client-sdk (app/client/web/package.json "databag-client-sdk": "^0.0.44"), not this repo's app/sdk, so your earlier SDK change never reaches the browser.
+Fix in app/client/web (minimal, rebaseable): install a tiny fetch wrapper at app start (e.g. src/main.tsx or a new src/utils/credentialsFetch.ts imported first) that, for requests to the app's own origin, copies any `Authorization: Basic ...` header into `Credentials: Basic ...` (keep Authorization too); also cover XMLHttpRequest if the SDK uses it for login (check the npm SDK code in node_modules/databag-client-sdk). Unit test the wrapper (jest). Do not switch the dependency to the local sdk in this rework.
+Verify locally as before with your prefix proxy that strips Authorization: a real browser-equivalent login through the web UI code path works (or a jest/jsdom test proving the header copy for the SDK's login call), plus yarn test, type-check, build green. Commit with trailers; then exit.
 
 == RULES (all S518 workers) ==
 - Your cwd is your isolated workspace (a full git clone). Stay inside it; relative paths only; never follow git remotes. Do not push. Do not switch branches. git add files BY NAME. Keep the bashy-injected BASHY_AGENT and the commit trailers weave gives you.
