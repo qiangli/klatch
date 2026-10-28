@@ -40,6 +40,9 @@ func main() {
   }
 
   store.SetPath(storePath, transformPath);
+  if cert == "" || key == "" {
+    app.SetNotificationBindAddress(port)
+  }
 
   // setup vapid keys
   var config store.Config

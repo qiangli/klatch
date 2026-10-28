@@ -6,19 +6,35 @@ import (
 	"encoding/json"
 	"errors"
 	"gorm.io/gorm"
+	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 )
 
 var notify = make(chan *store.Notification, APPNotifyBuffer)
 var notifyExit = make(chan bool)
+var notificationBindAddress atomic.Value
 
-//ExitNotifications stop forwarding notifications
+// SetNotificationBindAddress configures the listener used for same-node delivery.
+// Call before starting the notification worker.
+func SetNotificationBindAddress(address string) {
+	notificationBindAddress.Store(address)
+}
+
+func getNotificationBindAddress() string {
+	if value := notificationBindAddress.Load(); value != nil {
+		return value.(string)
+	}
+	return ""
+}
+
+// ExitNotifications stop forwarding notifications
 func ExitNotifications() {
 	notifyExit <- true
 }
 
-//SendNotifications forward notifcations to contacts
+// SendNotifications forward notifcations to contacts
 func SendNotifications() {
 
 	// queue all saved notifications
@@ -35,10 +51,10 @@ func SendNotifications() {
 		select {
 		case notification := <-notify:
 			node := getStrConfigValue(CNFDomain, "")
-			if notification.Node == "" || notification.Node == node {
+			if notification.Node == "" || (getNotificationBindAddress() == "" && strings.TrimRight(notification.Node, "/") == strings.TrimRight(node, "/")) {
 				sendLocalNotification(notification)
 			} else {
-				sendRemoteNotification(notification)
+				sendRemoteNotification(notification, node)
 			}
 			if err := store.DB.Delete(&notification).Error; err != nil {
 				ErrMsg(err)
@@ -78,14 +94,14 @@ func sendLocalNotification(notification *store.Notification) {
 		if err := NotifyViewRevision(&card, notification.Revision); err != nil {
 			ErrMsg(err)
 		}
-  } else if notification.Module == APPPushNotify {
-    SendPushEvent(card.Account, notification.Event)
+	} else if notification.Module == APPPushNotify {
+		SendPushEvent(card.Account, notification.Event)
 	} else {
 		LogMsg("unknown notification type")
 	}
 }
 
-func sendRemoteNotification(notification *store.Notification) {
+func sendRemoteNotification(notification *store.Notification, ownDomain string) {
 
 	var module string
 	if notification.Module == APPNotifyProfile {
@@ -96,61 +112,46 @@ func sendRemoteNotification(notification *store.Notification) {
 		module = "channel/revision"
 	} else if notification.Module == APPNotifyView {
 		module = "view/revision"
-  } else if notification.Module == APPPushNotify {
-    module = "notification"
+	} else if notification.Module == APPPushNotify {
+		module = "notification"
 	} else {
 		LogMsg("unknown notification type")
 		return
 	}
 
-  if module == "notification" {
-    body, err := json.Marshal(notification.Event)
-    if err != nil {
-      ErrMsg(err)
-      return
-    }
-    url := contactNotificationURL(notification.Node, module, notification.GUID, notification.Token)
-    req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
-    if err != nil {
-      ErrMsg(err)
-      return
-    }
-    req.Header.Set("Content-Type", "application/json; charset=utf-8")
-    setFederationHeaders(req)
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-      ErrMsg(err)
-    }
-    if resp == nil ||  resp.StatusCode != 200 {
-      LogMsg("failed to notify contact")
-    }
-  } else {
-    body, err := json.Marshal(notification.Revision)
-    if err != nil {
-      ErrMsg(err)
-      return
-    }
-    url := contactNotificationURL(notification.Node, module, notification.GUID, notification.Token)
-    req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
-    if err != nil {
-      ErrMsg(err)
-      return
-    }
-    req.Header.Set("Content-Type", "application/json; charset=utf-8")
-    setFederationHeaders(req)
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-      ErrMsg(err)
-    }
-    if resp == nil || resp.StatusCode != 200 {
-      LogMsg("failed to notify contact")
-    }
-  }
+	method := http.MethodPut
+	var payload interface{} = notification.Revision
+	if module == "notification" {
+		method = http.MethodPost
+		payload = notification.Event
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		ErrMsg(err)
+		return
+	}
+	url, local := notificationURL(notification.Node, ownDomain, getNotificationBindAddress(), module, notification.GUID, notification.Token)
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(body))
+	if err != nil {
+		ErrMsg(err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	if !local {
+		setFederationHeaders(req)
+	}
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		ErrMsg(err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		LogMsg("failed to notify contact: HTTP " + resp.Status)
+	}
 }
 
-//SetProfileNotification notifies all connected contacts of profile changes
+// SetProfileNotification notifies all connected contacts of profile changes
 func SetProfileNotification(account *store.Account) {
 
 	// select all connected cards
@@ -182,7 +183,7 @@ func SetProfileNotification(account *store.Account) {
 	}
 }
 
-//SetContactArticleNotification notifies all connected contacts of article changes
+// SetContactArticleNotification notifies all connected contacts of article changes
 // notify single card of article change:
 // for each card of groups in updated article data
 // for each card of group set or cleared from article (does not update data)
@@ -208,7 +209,7 @@ func SetContactArticleNotification(account *store.Account, card *store.Card) {
 	}
 }
 
-//SetContactViewNotification notifies all connected contacts of view change
+// SetContactViewNotification notifies all connected contacts of view change
 // notify single card of view change:
 // card set or cleared from a group
 // for each card in deleted group
@@ -234,7 +235,7 @@ func SetContactViewNotification(account *store.Account, card *store.Card) {
 	}
 }
 
-//SetContactChannelNotification notifies all connected contacts of channel changes
+// SetContactChannelNotification notifies all connected contacts of channel changes
 // notify single card of channel change:
 // for each card in updated channel data
 func SetContactChannelNotification(account *store.Account, card *store.Card) {
@@ -259,32 +260,45 @@ func SetContactChannelNotification(account *store.Account, card *store.Card) {
 	}
 }
 
-//SetContactPushNotification notifies contacts of push event
+// SetContactPushNotification notifies contacts of push event
 func SetContactPushNotification(card *store.Card, event string) {
 
-  if card.Status != APPCardConnected {
-    return
-  }
+	if card.Status != APPCardConnected {
+		return
+	}
 
-  // add new notification for card
-  notification := &store.Notification{
-    Node:       card.Node,
-    Module:     APPPushNotify,
-    GUID:       card.GUID,
-    Token:      card.OutToken,
-    Revision:   0,
-    Event:      event,
-  };
+	// add new notification for card
+	notification := &store.Notification{
+		Node:     card.Node,
+		Module:   APPPushNotify,
+		GUID:     card.GUID,
+		Token:    card.OutToken,
+		Revision: 0,
+		Event:    event,
+	}
 
-  if res := store.DB.Save(notification).Error; res != nil {
-    ErrMsg(res)
-  } else {
-    notify <- notification
-  }
+	if res := store.DB.Save(notification).Error; res != nil {
+		ErrMsg(res)
+	} else {
+		notify <- notification
+	}
 }
 
 func contactNotificationURL(node, module, guid, token string) string {
-  return "https://" + strings.TrimRight(node, "/") + "/contact/" + module + "?contact=" + guid + "." + token
+	return "https://" + strings.TrimRight(node, "/") + "/contact/" + module + "?contact=" + guid + "." + token
+}
+
+func notificationURL(node, ownDomain, bindAddress, module, guid, token string) (string, bool) {
+	if ownDomain != "" && strings.TrimRight(node, "/") == strings.TrimRight(ownDomain, "/") && bindAddress != "" {
+		host, port, err := net.SplitHostPort(bindAddress)
+		if err == nil {
+			if host == "" || host == "0.0.0.0" || host == "::" {
+				host = "127.0.0.1"
+			}
+			return "http://" + net.JoinHostPort(host, port) + "/contact/" + module + "?contact=" + guid + "." + token, true
+		}
+	}
+	return contactNotificationURL(node, module, guid, token), false
 }
 
 func setFederationHeaders(req *http.Request) {
