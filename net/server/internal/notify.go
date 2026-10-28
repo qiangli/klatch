@@ -7,6 +7,7 @@ import (
 	"errors"
 	"gorm.io/gorm"
 	"net/http"
+	"strings"
 )
 
 var notify = make(chan *store.Notification, APPNotifyBuffer)
@@ -108,7 +109,7 @@ func sendRemoteNotification(notification *store.Notification) {
       ErrMsg(err)
       return
     }
-    url := "https://" + notification.Node + "/contact/" + module + "?contact=" + notification.GUID + "." + notification.Token
+    url := contactNotificationURL(notification.Node, module, notification.GUID, notification.Token)
     req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
     if err != nil {
       ErrMsg(err)
@@ -129,7 +130,7 @@ func sendRemoteNotification(notification *store.Notification) {
       ErrMsg(err)
       return
     }
-    url := "https://" + notification.Node + "/contact/" + module + "?contact=" + notification.GUID + "." + notification.Token
+    url := contactNotificationURL(notification.Node, module, notification.GUID, notification.Token)
     req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
     if err != nil {
       ErrMsg(err)
@@ -280,3 +281,6 @@ func SetContactPushNotification(card *store.Card, event string) {
   }
 }
 
+func contactNotificationURL(node, module, guid, token string) string {
+  return "https://" + strings.TrimRight(node, "/") + "/contact/" + module + "?contact=" + guid + "." + token
+}

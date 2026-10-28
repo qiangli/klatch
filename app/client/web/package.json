@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "jest --runInBand",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --single-quote true --print-width 200 --write src",

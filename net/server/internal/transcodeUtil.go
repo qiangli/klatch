@@ -100,13 +100,23 @@ func transcodeAsset(asset *store.Asset) {
 	} else {
 		input := data + "/" + asset.Account.GUID + "/" + asset.TransformID
 		output := data + "/" + asset.Account.GUID + "/" + asset.AssetID
-		cmd := exec.Command(script+"/transform_"+asset.Transform+".sh", input, output, asset.TransformParams)
+		var cmd *exec.Cmd
+		imageTransform := asset.Transform == "icopy" || asset.Transform == "ithumb" || asset.Transform == "ilg"
+		if !imageTransform {
+			cmd = exec.Command(script+"/transform_"+asset.Transform+".sh", input, output, asset.TransformParams)
+		}
 		var stdout bytes.Buffer
-		cmd.Stdout = &stdout
 		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
+		var err error
+		if imageTransform {
+			err = transformImage(asset.Transform, input, output)
+		} else {
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+			err = cmd.Run()
+		}
 
-		if err := cmd.Run(); err != nil {
+		if err != nil {
 			LogMsg(stdout.String())
 			LogMsg(stderr.String())
 			ErrMsg(err)

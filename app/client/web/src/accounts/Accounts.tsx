@@ -1,3 +1,4 @@
+import { accessLink } from '../utils/appPath'
 import React, { useEffect, useState } from 'react'
 import classes from './Accounts.module.css'
 import { useAccounts } from './useAccounts.hook'
@@ -20,8 +21,8 @@ export function Accounts({ openSetup }: { openSetup: () => void }) {
   const [tokenCopy, setTokenCopy] = useState(false)
   const [linkCopy, setLinkCopy] = useState(false)
   const [token, setToken] = useState('')
-  const addLink = `${window.location.origin}/#/access?add=${token}`
-  const resetLink = `${window.location.origin}/#/access?reset=${token}`
+  const addLink = accessLink(window.location.origin, window.location.pathname, 'add', token)
+  const resetLink = accessLink(window.location.origin, window.location.pathname, 'reset', token)
 
   useEffect(() => {
     actions.reload()
