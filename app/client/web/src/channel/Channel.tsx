@@ -6,6 +6,7 @@ import { Colors } from '../constants/Colors'
 export function Channel({
   className,
   unread,
+  mentioned,
   focused,
   imageUrl,
   notesPlaceholder,
@@ -17,6 +18,7 @@ export function Channel({
 }: {
   className: string
   unread: boolean
+  mentioned: boolean
   focused: boolean
   imageUrl: string
   notesPlaceholder: string
@@ -53,7 +55,12 @@ export function Channel({
               {message != null && <span className={classes.messageSet}>{message}</span>}
               {message == null && <span className={classes.messageUnset}>{messagePlaceholder}</span>}
             </div>
-            {unread && <div className={classes.unread} style={{ backgroundColor: Colors.connected }} />}
+            {mentioned && (
+              <div className={classes.mentioned} aria-label="Mentioned you">
+                @
+              </div>
+            )}
+            {unread && !mentioned && <div className={classes.unread} style={{ backgroundColor: Colors.connected }} />}
           </div>
         </div>
       </div>

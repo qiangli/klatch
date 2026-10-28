@@ -109,4 +109,16 @@
     height: 8px;
     border-radius: 2px;
   }
+  .mentioned {
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--mantine-color-body);
+    background-color: var(--mantine-color-dbgreen-1);
+  }
 }

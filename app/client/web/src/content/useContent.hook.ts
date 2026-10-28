@@ -4,6 +4,7 @@ import { DisplayContext } from '../context/DisplayContext'
 import { ContextType } from '../context/ContextType'
 import { Channel, Card, Profile, Config } from 'databag-client-sdk'
 import { notes, unknown, iii_group, iiii_group, iiiii_group, group } from '../constants/Icons'
+import { hasMention } from '../utils/mentions'
 
 type ChannelParams = {
   cardId: string
@@ -15,6 +16,7 @@ type ChannelParams = {
   imageUrl: string
   subject: (string | null)[]
   message: string
+  mentioned: boolean
 }
 
 export function useContent() {
@@ -25,6 +27,7 @@ export function useContent() {
     strings: display.state.strings,
     layout: null,
     guid: '',
+    handle: '',
     cards: [] as Card[],
     connected: [] as Card[],
     sealable: [] as Card[],
@@ -144,7 +147,8 @@ export function useContent() {
       const message = getMessage()
       const imageUrl = selectImage()
 
-      return { cardId, channelId, sealed, focused, hosted, unread, imageUrl, subject, message }
+      const mentioned = unread && hasMention(message, state.handle)
+      return { cardId, channelId, sealed, focused, hosted, unread, imageUrl, subject, message, mentioned }
     })
 
     const search = state.filter?.toLowerCase()
@@ -165,7 +169,7 @@ export function useContent() {
     })
 
     updateState({ filtered })
-  }, [state.sorted, state.cards, state.guid, state.filter, state.focused])
+  }, [state.sorted, state.cards, state.guid, state.handle, state.filter, state.focused])
 
   useEffect(() => {
     if (app.state.focus) {
@@ -185,8 +189,8 @@ export function useContent() {
       updateState({ loaded })
     }
     const setProfile = (profile: Profile) => {
-      const { guid } = profile
-      updateState({ guid })
+      const { guid, handle } = profile
+      updateState({ guid, handle })
     }
     const setCards = (cards: Card[]) => {
       const filtered = cards.filter((card) => !card.blocked)
@@ -253,6 +257,7 @@ export function useContent() {
     },
     setFocus: async (cardId: string | null, channelId: string) => {
       await app.actions.setFocus(cardId, channelId)
+      updateState({ sorted: state.sorted.map((channel) => (channel.cardId === cardId && channel.channelId === channelId ? { ...channel, unread: false } : channel)) })
     },
     setLoaded: () => {
       updateState({ loaded: true })

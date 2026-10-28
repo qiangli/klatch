@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useContent } from './useContent.hook'
 import { Modal, Box, LoadingOverlay, Text, Divider, Switch, TextInput, Button } from '@mantine/core'
-import { TbSearch, TbMessagePlus, TbLabel } from "react-icons/tb";
+import { TbSearch, TbMessagePlus, TbLabel } from 'react-icons/tb'
 import classes from './Content.module.css'
 import { Channel } from '../channel/Channel'
 import { Card } from '../card/Card'
@@ -87,6 +87,7 @@ export function Content({ textCard }: { textCard: { cardId: null | string } }) {
         key={idx}
         className={classes.channel}
         unread={channel.unread}
+        mentioned={channel.mentioned}
         focused={channel.focused}
         imageUrl={channel.imageUrl}
         subject={channel.subject}
@@ -117,9 +118,7 @@ export function Content({ textCard }: { textCard: { cardId: null | string } }) {
           value={state.filter}
           onChange={(event) => actions.setFilter(event.currentTarget.value)}
         />
-	{ state.layout === 'large' && (
-	  <Divider orientation="vertical" />
-	)}
+        {state.layout === 'large' && <Divider orientation="vertical" />}
         <Button className={classes.add} leftSection={<TbMessagePlus size={20} />} onClick={() => setAdd(true)}>
           {state.strings.add}
         </Button>

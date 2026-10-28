@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import classes from './Conversation.module.css'
 import { useConversation } from './useConversation.hook'
-import { TbSend, TbTextSize, TbTextColor, TbVideo, TbFile, TbDisc, TbAlertTriangle, TbCamera, TbSettings, TbHome, TbServer, TbShield, TbExclamationCircle } from "react-icons/tb";
+import { TbSend, TbTextSize, TbTextColor, TbVideo, TbFile, TbDisc, TbAlertTriangle, TbCamera, TbSettings, TbHome, TbServer, TbShield, TbExclamationCircle } from 'react-icons/tb'
 import { CloseButton, Menu, Divider, Text, Textarea, ActionIcon, Loader } from '@mantine/core'
 import { Message } from '../message/Message'
 import { modals } from '@mantine/modals'
@@ -12,6 +12,7 @@ import { BinaryFile } from './binaryFile/BinaryFile'
 import { SketchPicker } from 'react-color'
 import AnimateHeight from 'react-animate-height'
 import { useResizeDetector } from 'react-resize-detector'
+import { getMentionQuery, insertMention, matchMentionMembers, MentionQuery, MentionMember } from '../utils/mentions'
 
 const PAD_HEIGHT = 1024 - 64
 
@@ -34,6 +35,8 @@ export function Conversation({ openDetails }: { openDetails: () => void }) {
   const attachBinary = useRef({ click: () => {} } as HTMLInputElement)
   const { height, ref } = useResizeDetector()
   const input = useRef(null as null | HTMLTextAreaElement)
+  const [mentionQuery, setMentionQuery] = useState(null as MentionQuery | null)
+  const [mentionIndex, setMentionIndex] = useState(0)
 
   const addImage = (image: File | undefined) => {
     if (image) {
@@ -109,10 +112,45 @@ export function Conversation({ openDetails }: { openDetails: () => void }) {
     }
   }
 
+  const mentionMembers = mentionQuery ? matchMentionMembers(state.members, mentionQuery.query) : []
+
+  const selectMention = (member: MentionMember) => {
+    if (!mentionQuery) {
+      return
+    }
+    const inserted = insertMention(state.message, mentionQuery, member.handle)
+    actions.setMessage(inserted.text)
+    setMentionQuery(null)
+    requestAnimationFrame(() => {
+      input.current?.focus()
+      input.current?.setSelectionRange(inserted.caret, inserted.caret)
+    })
+  }
+
   const keyDown = (key: string, shift: boolean) => {
+    if (mentionQuery && mentionMembers.length > 0) {
+      if (key === 'ArrowDown') {
+        setMentionIndex((mentionIndex + 1) % mentionMembers.length)
+        return true
+      }
+      if (key === 'ArrowUp') {
+        setMentionIndex((mentionIndex - 1 + mentionMembers.length) % mentionMembers.length)
+        return true
+      }
+      if (key === 'Enter' || key === 'Tab') {
+        selectMention(mentionMembers[mentionIndex] || mentionMembers[0])
+        return true
+      }
+    }
+    if (key === 'Escape' && mentionQuery) {
+      setMentionQuery(null)
+      return true
+    }
     if (key === 'Enter' && !shift && state.message) {
       sendMessage()
+      return true
     }
+    return false
   }
 
   useEffect(() => {
@@ -125,7 +163,7 @@ export function Conversation({ openDetails }: { openDetails: () => void }) {
     const { host } = state
     const card = state.cards.get(topic.guid) || null
     const profile = state.profile?.guid === topic.guid ? state.profile : null
-    return <Message key={idx} topic={topic} card={card} profile={profile} host={host} />
+    return <Message key={idx} topic={topic} card={card} profile={profile} host={host} currentHandle={state.profile?.handle} />
   })
 
   const media = state.assets.map((asset, index: number) => {
@@ -198,21 +236,48 @@ export function Conversation({ openDetails }: { openDetails: () => void }) {
           <input type="file" name="asset" accept="audio/*" ref={attachAudio} onChange={(e) => addAudio(e.target?.files?.[0])} style={{ display: 'none' }} />
           <input type="file" name="asset" accept="*/*" ref={attachBinary} onChange={(e) => addBinary(e.target?.files?.[0])} style={{ display: 'none' }} />
           <div className={classes.files}>{media}</div>
-          <Textarea
-            ref={input}
-            autosize={true}
-            maxRows={8}
-            minRows={2}
-            className={classes.message}
-            placeholder={state.strings.newMessage}
-            styles={{ input: { color: state.textColorSet ? state.textColor : undefined, fontSize: state.textSizeSet ? state.textSize : undefined } }}
-            value={state.message}
-            onChange={(event) => actions.setMessage(event.currentTarget.value)}
-            disabled={!state.detail || state.detail.locked || sending}
-            onKeyDown={(e) => {
-              keyDown(e.key, e.shiftKey)
-            }}
-          />
+          <div className={classes.composer}>
+            <Textarea
+              ref={input}
+              autosize={true}
+              maxRows={8}
+              minRows={2}
+              className={classes.message}
+              placeholder={state.strings.newMessage}
+              styles={{ input: { color: state.textColorSet ? state.textColor : undefined, fontSize: state.textSizeSet ? state.textSize : undefined } }}
+              value={state.message}
+              onChange={(event) => {
+                const value = event.currentTarget.value
+                actions.setMessage(value)
+                setMentionQuery(getMentionQuery(value, event.currentTarget.selectionStart))
+                setMentionIndex(0)
+              }}
+              disabled={!state.detail || state.detail.locked || sending}
+              onKeyDown={(e) => {
+                if (keyDown(e.key, e.shiftKey)) {
+                  e.preventDefault()
+                }
+              }}
+            />
+            {mentionQuery && mentionMembers.length > 0 && (
+              <div className={classes.mentionMenu} role="listbox" aria-label="Mention a member">
+                {mentionMembers.map((member, index) => (
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={index === mentionIndex}
+                    className={index === mentionIndex ? classes.mentionSelected : classes.mentionOption}
+                    key={member.handle}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => selectMention(member)}
+                  >
+                    <span className={classes.mentionHandle}>@{member.handle}</span>
+                    {member.name && <span className={classes.mentionName}>{member.name}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className={classes.controls}>
             {enableImage && (
               <ActionIcon className={classes.attach} variant="light" disabled={!state.detail || state.detail.locked || sending} onClick={() => attachImage.current.click()}>

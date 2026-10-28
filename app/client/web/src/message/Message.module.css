@@ -112,6 +112,19 @@
         white-space: pre-wrap;
       }
 
+      .mention,
+      .mentionMe {
+        padding: 1px 3px;
+        border-radius: 3px;
+        color: inherit;
+        background-color: var(--mantine-color-surface-3);
+      }
+
+      .mentionMe {
+        font-weight: 700;
+        background-color: var(--mantine-color-yellow-3);
+      }
+
       .locked {
         font-style: italic;
         color: var(--mantine-color-text-7);
