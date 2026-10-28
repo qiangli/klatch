@@ -29,12 +29,15 @@ import {
   TbMessage2Cancel,
   TbUserCancel,
   TbFolderCancel,
+  TbInfoCircle,
 } from "react-icons/tb";
 import { modals } from '@mantine/modals'
 import { useDisclosure } from '@mantine/hooks'
 import React, { useCallback, useState, useRef } from 'react'
 import Cropper from 'react-easy-crop'
 import { Area } from 'react-easy-crop/types'
+import klatchLogo from '../klatch.svg'
+import pkg from '../../package.json'
 
 export function Settings({ showLogout }: { showLogout: boolean }) {
   const imageFile = useRef(null as null | HTMLInputElement)
@@ -42,6 +45,7 @@ export function Settings({ showLogout }: { showLogout: boolean }) {
   const [changeOpened, { open: changeOpen, close: changeClose }] = useDisclosure(false)
   const [detailsOpened, { open: detailsOpen, close: detailsClose }] = useDisclosure(false)
   const [imageOpened, { open: imageOpen, close: imageClose }] = useDisclosure(false)
+  const [aboutOpened, { open: aboutOpen, close: aboutClose }] = useDisclosure(false)
   const [mfaOpened, { open: mfaOpen, close: mfaClose }] = useDisclosure(false)
   const [sealOpened, { open: sealOpen, close: sealClose }] = useDisclosure(false)
   const [blockedContactOpened, { open: blockedContactOpen, close: blockedContactClose }] = useDisclosure(false)
@@ -481,6 +485,14 @@ export function Settings({ showLogout }: { showLogout: boolean }) {
               <Switch className={classes.entryControl} checked={state.config.pushEnabled} onChange={(ev) => setNotifications(ev.currentTarget.checked)} />
             </div>
             <div className={classes.divider} />
+            <div className={classes.entry}>
+              <div className={classes.entryIcon}>
+                <TbInfoCircle />
+              </div>
+              <Text className={classes.entryLabel} onClick={aboutOpen}>
+                {state.strings.about}
+              </Text>
+            </div>
             {showLogout && (
               <div className={classes.entry}>
                 <div className={classes.entryIcon}>
@@ -881,6 +893,28 @@ export function Settings({ showLogout }: { showLogout: boolean }) {
             </div>
           )}
         </>
+      </Modal>
+      <Modal title={state.strings.about} opened={aboutOpened} onClose={aboutClose} overlayProps={{ backgroundOpacity: 0.55, blur: 3 }} centered>
+        <div className={classes.empty}>
+          <Image src={klatchLogo} w={96} h={96} fit="contain" />
+          <Text fw={700} size="xl">Klatch</Text>
+          <Text size="sm">Version {pkg.version}</Text>
+          <Text size="sm" ta="center">
+            Based on Databag by Roland Osborne &mdash; Apache-2.0
+          </Text>
+          <Text size="sm">
+            <a href="https://github.com/balzack/databag" target="_blank" rel="noreferrer">Upstream: github.com/balzack/databag</a>
+          </Text>
+          <Text size="sm">
+            <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noreferrer">Apache License 2.0</a>
+          </Text>
+          <Text size="xs" ta="center">Modifications Copyright 2026 DHNT Inc.</Text>
+        </div>
+        <div className={classes.controls}>
+          <Button variant="default" onClick={aboutClose}>
+            {state.strings.close}
+          </Button>
+        </div>
       </Modal>
       <Modal title={state.strings.blockedContacts} size="auto" opened={blockedContactOpened} onClose={blockedContactClose} overlayProps={{ backgroundOpacity: 0.55, blur: 3 }} centered>
         {blockedCards.length > 0 && <div className={classes.blocked}>{blockedCards}</div>}
