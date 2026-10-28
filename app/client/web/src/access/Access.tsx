@@ -68,7 +68,7 @@ export function Access() {
             {state.mode !== 'admin' && <Button variant="transparent" className={classes.float} leftSection={<TbSettings size={28} />} onClick={() => actions.setMode('admin')} />}
             {state.mode === 'admin' && <Button variant="transparent" className={classes.float} leftSection={<TbUser size={28} />} onClick={() => actions.setMode('account')} />}
             <Title className={classes.title} order={1}>
-              Databag
+              Klatch
             </Title>
             {state.mode === 'account' && (
               <>

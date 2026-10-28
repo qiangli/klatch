@@ -81,7 +81,8 @@ export const en = {
   textSize: 'Text Size',
   offsync: 'Offsync',
 
-  welcomeTo: 'Welcome To Databag',
+  welcomeTo: 'Welcome To Klatch',
+  about: 'About Klatch',
   notUser: 'Not a user?',
   adminAccess: 'Admin Access',
   yourProfile: 'Setup Your Profile',
@@ -488,7 +489,8 @@ export const fr = {
   textSize: 'Taille du texte',
   offsync: 'Hors synchronisation',
 
-  welcomeTo: 'Bienvenue sur Databag',
+  welcomeTo: 'Bienvenue sur Klatch',
+  about: 'About Klatch',
   notUser: 'Pas un utilisateur ?',
   adminAccess: 'Accès administrateur',
   yourProfile: 'Configurez votre profil',
@@ -895,7 +897,8 @@ export const es = {
   textSize: 'Tamaño del texto',
   offsync: 'Desincronizado',
 
-  welcomeTo: 'Bienvenido a Databag',
+  welcomeTo: 'Bienvenido a Klatch',
+  about: 'About Klatch',
   notUser: '¿No eres un usuario?',
   adminAccess: 'Acceso de administrador',
   yourProfile: 'Configura tu perfil',
@@ -1301,7 +1304,8 @@ export const pt = {
   textSize: 'Tamanho do texto',
   offsync: 'Fora de sincronizacão',
 
-  welcomeTo: 'Bem-vindo ao Databag',
+  welcomeTo: 'Bem-vindo ao Klatch',
+  about: 'About Klatch',
   notUser: 'Não é um utilizador?',
   adminAccess: 'Acesso para Administrador',
   yourProfile: 'Configura o teu perfil',
@@ -1707,7 +1711,8 @@ export const br = {
   textSize: 'Tamanho do texto',
   offsync: 'Fora de sincronia',
 
-  welcomeTo: 'Bem-vindo ao Databag',
+  welcomeTo: 'Bem-vindo ao Klatch',
+  about: 'About Klatch',
   notUser: 'Não é um usuário?',
   adminAccess: 'Acesso de Administrador',
   yourProfile: 'Configure seu perfil',
@@ -2113,7 +2118,8 @@ export const de = {
   textSize: 'Textgröße',
   offsync: 'Nicht synchronisiert',
 
-  welcomeTo: 'Willkommen bei Databag',
+  welcomeTo: 'Willkommen bei Klatch',
+  about: 'About Klatch',
   notUser: 'Kein Benutzer?',
   adminAccess: 'Administratorzugang',
   yourProfile: 'Profil einrichten',
@@ -2519,7 +2525,8 @@ export const ru = {
   textSize: 'Размер текста',
   offsync: 'Несинхронизировано',
 
-  welcomeTo: 'Добро пожаловать в Databag',
+  welcomeTo: 'Добро пожаловать в Klatch',
+  about: 'About Klatch',
   notUser: 'Не пользователь?',
   adminAccess: 'Доступ администратора',
   yourProfile: 'Настройте свой профиль',
@@ -2925,7 +2932,8 @@ export const el = {
   textSize: 'Μέγεθος κειμένου',
   offsync: 'Εκτός συγχρονισμού',
 
-  welcomeTo: 'Καλώς ήρθατε στο Databag',
+  welcomeTo: 'Καλώς ήρθατε στο Klatch',
+  about: 'About Klatch',
   notUser: 'Δεν είστε χρήστης;',
   adminAccess: 'Πρόσβαση διαχειριστή',
   yourProfile: 'Ρυθμίστε το προφίλ σας',
@@ -3302,7 +3310,8 @@ export const cn = {
   textSize: '文字大小',
   offsync: '不同步',
 
-  welcomeTo: '欢迎来到 Databag',
+  welcomeTo: '欢迎来到 Klatch',
+  about: 'About Klatch',
   notUser: '还不是用户？',
   adminAccess: '管理员访问',
   yourProfile: '设置个人资料',
@@ -3708,7 +3717,8 @@ export const it = {
   textSize: 'Dimensione Testo',
   offsync: 'Non sincronizzato',
 
-  welcomeTo: 'Benvenuto su Databag',
+  welcomeTo: 'Benvenuto su Klatch',
+  about: 'About Klatch',
   notUser: 'Non sei un utente?',
   adminAccess: 'Accesso Amministratore',
   yourProfile: 'Imposta il tuo Profilo',

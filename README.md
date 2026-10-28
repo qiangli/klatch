@@ -1,3 +1,15 @@
+<div align="center">
+  <img src="/app/client/web/public/klatch.svg" width="96" alt="Klatch logo"/>
+  <h1>Klatch</h1>
+  <p>A federated messenger for self-hosting</p>
+</div>
+
+Klatch is a rebranded fork of [Databag](https://github.com/balzack/databag) by Roland Osborne, licensed under the Apache License 2.0. All credit for the original design and implementation goes to the Databag author. Modifications Copyright 2026 DHNT Inc. See [NOTICE](NOTICE) and [LICENSE](LICENSE).
+
+---
+
+## Upstream Databag README
+
 
 [![contribute.design](https://contribute.design/api/shield/balzack/databag)](https://contribute.design/balzack/databag)
 

@@ -12,7 +12,7 @@ export function Base() {
   return (
     <div className={classes.base}>
       <div className={classes.header}>
-        <Text className={classes.title}>Databag</Text>
+        <Text className={classes.title}>Klatch</Text>
         <Text className={classes.label}>{state.strings.communication}</Text>
       </div>
       <Image className={classes.image} src={state.scheme === 'dark' ? dark : light} fit="contain" />
