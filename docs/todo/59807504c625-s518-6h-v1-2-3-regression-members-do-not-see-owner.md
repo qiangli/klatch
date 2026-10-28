@@ -9,6 +9,7 @@ labels:
     - klatch
 created: 2026-10-28T11:01:39.921521Z
 due: 2026-10-31T00:00:00Z
+assignee: claude-sonnet5.5
 sprint: 518
 sprint_id: bbe9153b-b299-5be8-8ef8-215ad002deb9
 sprint_title: 'Klatch MVP: rebranded Databag chat server + web + federation on one satellite (replaces Matrix), due Sat 10-31'
