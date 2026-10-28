@@ -4,6 +4,9 @@ import { App } from '@/App'
 import './index.css'
 import { AppContextProvider } from './context/AppContext'
 import { DisplayContextProvider } from './context/DisplayContext'
+import { installCredentialsFetch } from './utils/credentialsFetch'
+
+installCredentialsFetch()
 
 const rootElement = document.querySelector('[data-js="root"]')
 
