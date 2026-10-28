@@ -17,16 +17,16 @@ var revisionListener = make(map[uint][]chan<- []byte)
 var disconnectListener = make(map[uint][]chan<- bool)
 var upgrader = websocket.Upgrader{}
 
-//Status handler for websocket connection
+// Status handler for websocket connection
 func Status(w http.ResponseWriter, r *http.Request) {
 
-  // send ringing updates
-  ringMode := r.FormValue("mode") == "ring"
+	// send ringing updates
+	ringMode := r.FormValue("mode") == "ring"
 
-  // allows cross origin websocket in dev mode
-  upgrader.CheckOrigin = func(r *http.Request) bool {
-    return true
-  }
+	// allows cross origin websocket in dev mode
+	upgrader.CheckOrigin = func(r *http.Request) bool {
+		return true
+	}
 
 	// accept websocket connection
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -63,19 +63,44 @@ func Status(w http.ResponseWriter, r *http.Request) {
 	// retrieve reference account
 	var session store.Session
 	if err := store.DB.Preload("Account").Where("account_id = ? AND token = ?", target, access).First(&session).Error; err != nil {
-    conn.WriteMessage(websocket.TextMessage, []byte(""))
+		conn.WriteMessage(websocket.TextMessage, []byte(""))
 		ErrMsg(err)
 		return
 	}
 
-	// send current version
-	rev := getRevision(&session.Account)
+	// open channel for revisions
+	c := make(chan []byte)
+
+	// register channel for updates
+	if ringMode {
+		addStatusListener(session.Account.ID, c)
+		defer removeStatusListener(session.Account.ID, c)
+	} else {
+		addRevisionListener(session.Account.ID, c)
+		defer removeRevisionListener(session.Account.ID, c)
+	}
+
+	// open channel for disconnection
+	d := make(chan bool)
+
+	// register channel for updates
+	addDisconnectListener(session.Account.ID, d)
+	defer removeDisconnectListener(session.Account.ID, d)
+
+	// Subscribe before reading the snapshot so an update during the handshake
+	// is present in either the snapshot or the listener stream.
+	var current store.Account
+	if err := store.DB.First(&current, session.Account.ID).Error; err != nil {
+		ErrMsg(err)
+		return
+	}
+	rev := getRevision(&current)
 	var msg []byte
-  if ringMode {
-    msg, err = json.Marshal(rev)
-  } else {
-    msg, err = json.Marshal(rev.Revision)
-  }
+	if ringMode {
+		msg, err = json.Marshal(rev)
+	} else {
+		msg, err = json.Marshal(rev.Revision)
+	}
 	if err != nil {
 		ErrMsg(err)
 		return
@@ -84,27 +109,6 @@ func Status(w http.ResponseWriter, r *http.Request) {
 		ErrMsg(err)
 		return
 	}
-
-	// open channel for revisions
-	c := make(chan []byte)
-	defer close(c)
-
-	// register channel for updates
-  if ringMode {
-    addStatusListener(session.Account.ID, c)
-    defer removeStatusListener(session.Account.ID, c)
-  } else {
-    addRevisionListener(session.Account.ID, c)
-    defer removeRevisionListener(session.Account.ID, c)
-  }
-
-  // open channel for disconnection
-  d := make(chan bool)
-  defer close(d)
-
-  // register channel for updates
-  addDisconnectListener(session.Account.ID, d)
-  defer removeDisconnectListener(session.Account.ID, d)
 
 	// start ping pong ticker
 	ticker := time.NewTicker(60 * time.Second)
@@ -123,9 +127,9 @@ func Status(w http.ResponseWriter, r *http.Request) {
 				ErrMsg(err)
 				return
 			}
-    case <-d:
-      LogMsg("user discconection")
-      return
+		case <-d:
+			LogMsg("user discconection")
+			return
 		case <-wsExit:
 			LogMsg("exiting server")
 			wsExit <- true
@@ -143,50 +147,50 @@ func getRevision(account *store.Account) Activity {
 	r.Group = account.GroupRevision
 	r.Card = account.CardRevision
 
-  var a Activity
-  a.Revision = &r
+	var a Activity
+	a.Revision = &r
 	return a
 }
 
-//ExitStatus closes websocket handler
+// ExitStatus closes websocket handler
 func ExitStatus() {
 	wsExit <- true
 }
 
-//SetRing sends ring object on all account websockets
+// SetRing sends ring object on all account websockets
 func SetRing(card *store.Card, ring Ring) {
 
-  // serialize ring activity
-  var phone Phone
-  phone.CallID = ring.CallID
-  phone.CalleeToken = ring.CalleeToken
-  phone.Ice = ring.Ice
-  phone.IceURL = ring.IceURL
-  phone.IceUsername = ring.IceUsername
-  phone.IcePassword = ring.IcePassword
-  phone.CardID = card.CardSlot.CardSlotID
-  var a Activity
-  a.Phone = &phone;
-  msg, err := json.Marshal(a)
-  if err != nil {
-    ErrMsg(err);
-    return
-  }
+	// serialize ring activity
+	var phone Phone
+	phone.CallID = ring.CallID
+	phone.CalleeToken = ring.CalleeToken
+	phone.Ice = ring.Ice
+	phone.IceURL = ring.IceURL
+	phone.IceUsername = ring.IceUsername
+	phone.IcePassword = ring.IcePassword
+	phone.CardID = card.CardSlot.CardSlotID
+	var a Activity
+	a.Phone = &phone
+	msg, err := json.Marshal(a)
+	if err != nil {
+		ErrMsg(err)
+		return
+	}
 
-  // lock access to statusListener
-  wsSync.Lock()
-  defer wsSync.Unlock()
+	// lock access to statusListener
+	wsSync.Lock()
+	defer wsSync.Unlock()
 
-  // notify all listeners
-  chs, ok := statusListener[card.Account.ID]
-  if ok {
-    for _, ch := range chs {
-      ch <- msg
-    }
-  }
+	// notify all listeners
+	chs, ok := statusListener[card.Account.ID]
+	if ok {
+		for _, ch := range chs {
+			ch <- msg
+		}
+	}
 }
 
-//SetStatus sends revision object on all account websockets
+// SetStatus sends revision object on all account websockets
 func SetStatus(account *store.Account) {
 
 	// get revisions for the account
@@ -223,20 +227,20 @@ func SetStatus(account *store.Account) {
 	}
 }
 
-//ClearStatus disconnects websockets from account
+// ClearStatus disconnects websockets from account
 func ClearStatus(account *store.Account) {
 
-  // lock access to statusListener
-  wsSync.Lock()
-  defer wsSync.Unlock();
+	// lock access to statusListener
+	wsSync.Lock()
+	defer wsSync.Unlock()
 
-  // notify all disconnect listeners
-  chs, ok := disconnectListener[account.ID]
-  if ok {
-    for _, ch := range chs {
-      ch <- true
-    }
-  }
+	// notify all disconnect listeners
+	chs, ok := disconnectListener[account.ID]
+	if ok {
+		for _, ch := range chs {
+			ch <- true
+		}
+	}
 }
 
 func addStatusListener(act uint, ch chan<- []byte) {
@@ -315,38 +319,37 @@ func removeRevisionListener(act uint, ch chan<- []byte) {
 
 func addDisconnectListener(act uint, ch chan<- bool) {
 
-  // lock access to disconnectListener
-  wsSync.Lock()
-  defer wsSync.Unlock()
+	// lock access to disconnectListener
+	wsSync.Lock()
+	defer wsSync.Unlock()
 
-  // add new listener to map
-  chs, ok := disconnectListener[act]
-  if ok {
-    disconnectListener[act] = append(chs, ch)
-  } else {
-    disconnectListener[act] = []chan<- bool{ch}
-  }
+	// add new listener to map
+	chs, ok := disconnectListener[act]
+	if ok {
+		disconnectListener[act] = append(chs, ch)
+	} else {
+		disconnectListener[act] = []chan<- bool{ch}
+	}
 }
 
 func removeDisconnectListener(act uint, ch chan<- bool) {
 
-  // lock access to revisionListener
-  wsSync.Lock()
-  defer wsSync.Unlock()
+	// lock access to revisionListener
+	wsSync.Lock()
+	defer wsSync.Unlock()
 
-  // remove channel from map
-  chs, ok := disconnectListener[act]
-  if ok {
-    for i, c := range chs {
-      if ch == c {
-        if len(chs) == 1 {
-          delete(disconnectListener, act)
-        } else {
-          chs[i] = chs[len(chs)-1]
-          disconnectListener[act] = chs[:len(chs)-1]
-        }
-      }
-    }
-  }
+	// remove channel from map
+	chs, ok := disconnectListener[act]
+	if ok {
+		for i, c := range chs {
+			if ch == c {
+				if len(chs) == 1 {
+					delete(disconnectListener, act)
+				} else {
+					chs[i] = chs[len(chs)-1]
+					disconnectListener[act] = chs[:len(chs)-1]
+				}
+			}
+		}
+	}
 }
-

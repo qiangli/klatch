@@ -4,6 +4,7 @@ import { Revision } from './entities';
 import { Call } from './types';
 
 const PING_INTERVAL = 5000;
+const MAX_RETRY_INTERVAL = 60000;
 
 export class Connection {
   private log: Logging;
@@ -11,6 +12,8 @@ export class Connection {
   private emitter: EventEmitter;
   private websocket: WebSocket;
   private stale: ReturnType<typeof setTimeout>;
+  private retryInterval = 1000;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(log: Logging, token: string, node: string, secure: boolean) {
     this.closed = false;
@@ -29,6 +32,10 @@ export class Connection {
   public async close() {
     this.closed = true;
     clearInterval(this.stale);
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
     if (this.websocket) {
       this.websocket.close();
     }
@@ -65,7 +72,7 @@ export class Connection {
     }
 
     this.emitter.emit('status', 'connecting');
-    const wsUrl = `ws${secure ? 's' : ''}://${node}/status?mode=ring`;
+    const wsUrl = `ws${secure ? 's' : ''}://${node.replace(/\/$/, '')}/status?mode=ring`;
     const ws = new WebSocket(wsUrl);
     ws.onmessage = (e) => {
       try {
@@ -102,24 +109,21 @@ export class Connection {
         ws.close();
       }
     };
-    ws.onclose = (e) => {
-      console.log(e);
+    ws.onclose = () => {
+      if (this.closed) return;
       this.emitter.emit('status', 'disconnected');
-      setTimeout(() => {
-        if (ws != null) {
-          ws.onmessage = () => {};
-          ws.onclose = () => {};
-          ws.onopen = () => {};
-          ws.onerror = () => {};
-          this.websocket = this.setWebSocket(token, node, secure);
-        }
-      }, 1000);
+      const delay = this.retryInterval + Math.random() * this.retryInterval / 2;
+      this.retryInterval = Math.min(this.retryInterval * 2, MAX_RETRY_INTERVAL);
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = null;
+        if (!this.closed) this.websocket = this.setWebSocket(token, node, secure);
+      }, delay);
     };
     ws.onopen = () => {
+      this.retryInterval = 1000;
       ws.send(JSON.stringify({ AppToken: token }));
     };
-    ws.onerror = (e) => {
-      console.log(e);
+    ws.onerror = () => {
       ws.close();
     };
     return ws;
