@@ -3,6 +3,10 @@ export type MentionMember = {
   name?: string | null
 }
 
+export type MentionContact = MentionMember & {
+  guid: string
+}
+
 export type Mention = {
   handle: string
   start: number
@@ -35,11 +39,33 @@ export function findMentionMember(mention: Mention, members: MentionMember[]): M
   return members.find((member) => member.handle.toLocaleLowerCase() === handle)
 }
 
-export function hasMention(text?: string | null, handle?: string | null): boolean {
+export function getChannelMentionMembers(viewer: MentionContact | null, owner: MentionContact | null, memberGuids: string[], cards: MentionContact[]): MentionMember[] {
+  const members = new Set(memberGuids)
+  const contacts = owner ? [owner, ...cards.filter((card) => members.has(card.guid))] : cards
+  const handles = new Set<string>()
+  const viewerHandle = viewer?.handle.toLocaleLowerCase()
+
+  return contacts
+    .filter((contact) => contact.handle && contact.guid !== viewer?.guid && contact.handle.toLocaleLowerCase() !== viewerHandle)
+    .filter((contact) => {
+      const handle = contact.handle.toLocaleLowerCase()
+      if (handles.has(handle)) {
+        return false
+      }
+      handles.add(handle)
+      return true
+    })
+    .map(({ handle, name }) => ({ handle, name }))
+}
+
+export function hasMention(text?: string | null, handle?: string | null, members?: MentionMember[]): boolean {
   if (!text || !handle) {
     return false
   }
   const expected = handle.toLocaleLowerCase()
+  if (members && !members.some((member) => member.handle.toLocaleLowerCase() === expected)) {
+    return false
+  }
   return parseMentions(text).some((mention) => mention.handle.toLocaleLowerCase() === expected)
 }
 
