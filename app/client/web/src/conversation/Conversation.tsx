@@ -13,6 +13,7 @@ import { SketchPicker } from 'react-color'
 import AnimateHeight from 'react-animate-height'
 import { useResizeDetector } from 'react-resize-detector'
 import { getMentionQuery, insertMention, matchMentionMembers, MentionQuery, MentionMember } from '../utils/mentions'
+import { usePendingCaret } from './usePendingCaret.hook'
 
 const PAD_HEIGHT = 1024 - 64
 
@@ -35,6 +36,7 @@ export function Conversation({ openDetails }: { openDetails: () => void }) {
   const attachBinary = useRef({ click: () => {} } as HTMLInputElement)
   const { height, ref } = useResizeDetector()
   const input = useRef(null as null | HTMLTextAreaElement)
+  const restoreCaret = usePendingCaret(input, state.message)
   const [mentionQuery, setMentionQuery] = useState(null as MentionQuery | null)
   const [mentionIndex, setMentionIndex] = useState(0)
 
@@ -119,12 +121,9 @@ export function Conversation({ openDetails }: { openDetails: () => void }) {
       return
     }
     const inserted = insertMention(state.message, mentionQuery, member.handle)
+    restoreCaret(inserted.caret)
     actions.setMessage(inserted.text)
     setMentionQuery(null)
-    requestAnimationFrame(() => {
-      input.current?.focus()
-      input.current?.setSelectionRange(inserted.caret, inserted.caret)
-    })
   }
 
   const keyDown = (key: string, shift: boolean) => {
