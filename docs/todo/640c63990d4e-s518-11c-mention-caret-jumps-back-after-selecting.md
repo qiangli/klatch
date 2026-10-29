@@ -3,15 +3,20 @@ id: 640c63990d4e
 kind: bug
 title: S518.11c @mention caret jumps back after selecting a mention
 seq: 2826
-status: todo
+status: done
 priority: p0
 labels:
     - klatch
 created: 2026-10-29T04:00:46.969182Z
+weave: 12
 due: 2026-10-31T00:00:00Z
+assignee: codex-gpt5.6-sol
 sprint: 518
 sprint_id: bbe9153b-b299-5be8-8ef8-215ad002deb9
 sprint_title: 'Klatch MVP: rebranded Databag chat server + web + federation on one satellite (replaces Matrix), due Sat 10-31'
+closed: 2026-10-29T04:15:44.190591Z
+resolution: fixed
+closed_by: codex-gpt5.6-sol-l
 ---
 
 S518.11c @mention: caret jumps back after selecting a mention (bug found by live E2E on v1.2.4).

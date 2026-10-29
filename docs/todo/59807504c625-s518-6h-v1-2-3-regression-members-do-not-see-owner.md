@@ -3,23 +3,31 @@ id: 59807504c625
 kind: bug
 title: 'S518.6h v1.2.3 regression: members do not see owner group in web UI'
 seq: 2825
-status: todo
+status: done
 priority: p0
 labels:
     - klatch
 created: 2026-10-28T11:01:39.921521Z
+weave: 11
 due: 2026-10-31T00:00:00Z
 assignee: claude-sonnet5.5
 sprint: 518
 sprint_id: bbe9153b-b299-5be8-8ef8-215ad002deb9
 sprint_title: 'Klatch MVP: rebranded Databag chat server + web + federation on one satellite (replaces Matrix), due Sat 10-31'
+closed: 2026-10-29T02:41:31.308256Z
+resolution: fixed
+closed_by: claude-sonnet5.5-k
 ---
 
-S518.6h REGRESSION in v1.2.3: members no longer see the owner's group in the web UI (even after reload).
-Repo: github.com/qiangli/klatch (main 51a928ea = v1.2.3, live on the dev satellite since ~06:00 PDT).
-Measured by the manager: with v1.2.2 (web built against npm databag-client-sdk 0.0.44) the live E2E test 2 'alice posts in the group; bob and carol see it' PASSED (after one cache-clear reload). With v1.2.3 (S518.6f switched app/client/web to "databag-client-sdk": "file:../../sdk" and changed app/sdk/src/connection.ts + net/server/internal/api_status.go) it FAILS: carol's UI shows 'No Topics' even after reload. Server side is correct: carol's card for alice is status=connected with notifiedChannel=78, and GET /content/channels?contact=<alice-guid>.<token>&viewRevision=1 (the member pull) returns 200 with subject 'S518 test'. So the regression is in the client: the in-repo app/sdk at HEAD differs from the published 0.0.44 the web app was tested with (or the new connection.ts ordering breaks the initial card/channel sync).
-Task: find the root cause and fix it with the smallest safe change. Acceptable outcomes: (a) fix the in-repo SDK path so members see owner channels and live revisions arrive, or (b) revert app/client/web to npm databag-client-sdk ^0.0.44 (restore yarn.lock), port the minimal connection fix into the web app if it is needed and possible, and keep the server-side api_status.go/notify fixes — whichever is proven. Prove it with the REAL E2E on the live host: the suite is at ~/s518-klatch/e2e on the novidesign host (ACCESS line: bashy claim list | grep s518; runner runit.sh; it needs env KLATCH_PASS_ALICE/BOB/CAROL (and DAVE + KLATCH2_URL for federation) — you can reach the vault from Dragon with bashy secret show klatch/<name> and klatch2/dave and pass them to the host over ssh stdin, never print them). To test your build on the live host WITHOUT a release, you may temporarily swap ONLY the web bundle of the 'klatch' service (keep a copy of the current ~/s518-klatch web dir and restore it before you exit unless your fix is better and documented); never touch data dirs or klatch2. Front rate limit ~60 req/min per IP applies to the E2E (it paces requests).
-Verification: E2E tests 1-6 + 8 pass on the host with your web build; go test/web/sdk gates green; commit with trailers and the measured E2E summary; exit.
+S518.6h FIX (operator: fix remaining issues). Root cause is MEASURED (see umbrella docs/sprint-518/e2e/BLOCKERS.md and your earlier S518.6h BLOCKERS diagnosis): behind the satellite front, anonymous traffic is rate-limited (~60 req/min per source IP; 429 with Retry-After; queued requests are delayed). The client SDK (app/sdk) then (1) hits its 15s fetch TIMEOUT (app/sdk/src/net/fetchUtil.ts) on contact channel/card syncs and (2) marks the contact 'offsync' (offsync_channel_card) and NEVER re-syncs it (contact.ts offsync branch only records the revision) — so members see 'No Topics' even after reload. A single unpaced user works.
+Repo: github.com/qiangli/klatch (main = v1.2.3; web builds against in-repo app/sdk since v1.2.3).
+Fix in app/sdk (and web only if needed), minimal and tested:
+ a) fetchUtil: on HTTP 429 honour Retry-After (cap ~30s) and retry with jittered exponential backoff (bounded attempts); treat a timeout as retryable a bounded number of times; raise the per-request timeout to e.g. 30s.
+ b) contact sync: an offsync contact must be retried — on the next revision event AND on a periodic timer (e.g. every 30-60s while offsync) — until the sync succeeds; clear the offsync marker on success; persisted offsync state must not block re-sync after reload/relogin.
+ c) keep request volume modest (no tight polling).
+Unit tests (jest in app/sdk) for 429/Retry-After retry, timeout retry, and offsync -> retried -> cleared.
+LIVE PROOF (required): build the web bundle (cd app/sdk && yarn --frozen-lockfile && yarn build; cd app/client/web && yarn --frozen-lockfile && yarn build) and temporarily swap ONLY the web bundle of the 'klatch' service on the novidesign host (ACCESS: bashy claim list | grep s518; back up ~/s518-klatch/data/web first; never touch data or klatch2), then run the real E2E suite there (~/s518-klatch/e2e, runit.sh; pass KLATCH_PASS_ALICE/BOB/CAROL/DAVE + KLATCH2_URL via ssh stdin from Dragon vault: bashy secret show klatch/<name>, klatch2/dave — never print). Target: tests 1-6 and 8 pass (federation 7 optional) in one run with the default pacing. Afterwards RESTORE the original web bundle (the manager will ship your fix as a signed release).
+Verification: sdk + web unit tests, type-check, builds green; E2E summary from the host in the commit message; commit with trailers; exit.
 
 == RULES (all S518 workers) ==
 - Your cwd is your isolated workspace (a full git clone). Stay inside it; relative paths only; never follow git remotes. Do not push. Do not switch branches. git add files BY NAME. Keep the bashy-injected BASHY_AGENT and the commit trailers weave gives you.
