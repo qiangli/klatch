@@ -40,6 +40,7 @@ import { removeContactCall } from './net/removeContactCall';
 
 const CLOSE_POLL_MS = 100;
 const RETRY_POLL_MS = 2000;
+const OFFSYNC_RETRY_MS = 45000;
 
 export class ContactModule implements Contact {
   private log: Logging;
@@ -67,6 +68,7 @@ export class ContactModule implements Contact {
   private offsyncProfileCard: Map<string, number>;
   private offsyncChannelCard: Map<string, number>;
   private offsyncArticleCard: Map<string, number>;
+  private offsyncTimer: ReturnType<typeof setInterval> | null = null;
   private blockedCard: Set<string>;
   private blockedCardChannel: Set<string>;
   private read: Map<string, number>;
@@ -187,10 +189,27 @@ export class ContactModule implements Contact {
     });
     this.emitCards();
 
+    this.queueOffsync();
+    this.offsyncTimer = setInterval(() => {
+      if (this.closing || this.queueOffsync() === 0) {
+        return;
+      }
+      this.sync().catch((err) => this.log.warn(err));
+    }, OFFSYNC_RETRY_MS);
+    if (typeof this.offsyncTimer === "object" && this.offsyncTimer && "unref" in this.offsyncTimer) {
+      this.offsyncTimer.unref();
+    }
+
     this.unsealAll = true;
     this.syncing = false;
     await this.sync();
     this.emitLoaded();
+  }
+
+  private queueOffsync(): number {
+    const ids = new Set<string>([...this.offsyncProfileCard.keys(), ...this.offsyncArticleCard.keys(), ...this.offsyncChannelCard.keys()]);
+    ids.forEach((id) => this.resync.add(id));
+    return ids.size;
   }
 
   public async setRevision(rev: number): Promise<void> {
@@ -200,6 +219,10 @@ export class ContactModule implements Contact {
 
   public async close() {
     this.closing = true;
+    if (this.offsyncTimer) {
+      clearInterval(this.offsyncTimer);
+      this.offsyncTimer = null;
+    }
     if (this.focus) {
       await this.focus.close();
       this.focus = null;
@@ -399,7 +422,7 @@ export class ContactModule implements Contact {
                   const { profile, detail, profileRevision } = value.item;
                   await this.syncProfile(key, profile.node, profile.guid, detail.token, profileRevision);
                   value.item.profileRevision = offsyncProfile;
-                  await this.store.setContactCardProfileRevision(guid, key, profileRevision);
+                  await this.store.setContactCardProfileRevision(guid, key, offsyncProfile);
                   await this.clearCardProfileOffsync(key);
                   entry.value.card = this.setCard(key, entry.value.item);
                   this.emitCards();
@@ -413,7 +436,7 @@ export class ContactModule implements Contact {
                   const { profile, detail, articleRevision } = value.item;
                   await this.syncArticles(key, profile.node, profile.guid, detail.token, articleRevision);
                   value.item.articleRevision = offsyncArticle;
-                  await this.store.setContactCardArticleRevision(guid, key, articleRevision);
+                  await this.store.setContactCardArticleRevision(guid, key, offsyncArticle);
                   await this.clearCardArticleOffsync(key);
                   entry.value.card = this.setCard(key, entry.value.item);
                   this.emitCards();
@@ -486,6 +509,7 @@ export class ContactModule implements Contact {
                   if (offsyncProfile) {
                     await this.setCardProfileOffsync(id, data.notifiedProfile);
                     entry.card = this.setCard(id, entry.item);
+                    this.resync.add(id);
                   } else {
                     try {
                       await this.syncProfile(id, entry.item.profile.node, entry.item.profile.guid, entry.item.detail.token, entry.item.profileRevision);
@@ -504,6 +528,7 @@ export class ContactModule implements Contact {
                   if (offsyncArticle) {
                     await this.setCardArticleOffsync(id, data.notifiedArticle);
                     entry.card = this.setCard(id, entry.item);
+                    this.resync.add(id);
                   } else {
                     try {
                       await this.syncArticles(id, entry.item.profile.node, entry.item.profile.guid, entry.item.detail.token, entry.item.articleRevision);
@@ -523,6 +548,7 @@ export class ContactModule implements Contact {
                   if (offsyncChannel) {
                     await this.setCardChannelOffsync(id, data.notifiedChannel);
                     entry.card = this.setCard(id, entry.item);
+                    this.resync.add(id);
                   } else {
                     try {
                       const { profile, detail } = entry.item;
