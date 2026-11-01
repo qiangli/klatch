@@ -10,6 +10,7 @@ func AutoMigrate(db *gorm.DB) {
   db.AutoMigrate(&PushEvent{});
   db.AutoMigrate(&Account{});
   db.AutoMigrate(&AccountToken{});
+  db.AutoMigrate(&SSOIdentity{});
   db.AutoMigrate(&GroupSlot{});
   db.AutoMigrate(&GroupData{});
   db.AutoMigrate(&Group{});
@@ -55,6 +56,14 @@ type AccountToken struct {
   Expires           int64           `gorm:"not null"`
   Created           int64           `gorm:"autoCreateTime"`
   Account           *Account
+}
+
+// SSOIdentity links a cloudbox (outpost-signed) email to a klatch account.
+type SSOIdentity struct {
+  ID                uint            `gorm:"primaryKey;not null;unique;autoIncrement"`
+  Email             string          `gorm:"not null;uniqueIndex"`
+  AccountID         uint            `gorm:"not null;index"`
+  Created           int64           `gorm:"autoCreateTime"`
 }
 
 type Flag struct {
