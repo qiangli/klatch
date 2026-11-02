@@ -221,6 +221,11 @@ func SetSSOAccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// team mode: a failure here must not block the sign-in itself
+	if err := ssoTeamJoin(account, r.Header.Get("Remote-Groups") == "admin"); err != nil {
+		ErrMsg(err)
+	}
+
 	data, err := securerandom.Bytes(APPResetSize)
 	if err != nil {
 		ErrResponse(w, http.StatusInternalServerError, err)
