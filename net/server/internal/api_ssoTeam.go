@@ -55,8 +55,9 @@ func ssoTeamTopic() string {
 }
 
 func setStrConfigValue(configID string, value string) error {
+	// Assign by column: a struct would skip the zero value, so "" never cleared.
 	var config store.Config
-	return store.DB.Where(store.Config{ConfigID: configID}).Assign(store.Config{StrValue: value}).FirstOrCreate(&config).Error
+	return store.DB.Where(store.Config{ConfigID: configID}).Assign(map[string]interface{}{"str_value": value}).FirstOrCreate(&config).Error
 }
 
 // teamAgents mints short-lived sessions so team mode can act as each

@@ -167,22 +167,34 @@ func ssoAccount(email string, name string) (*store.Account, error) {
 		PrivateKey: privatePem,
 		KeyType:    keyType,
 	}
-	err = store.DB.Transaction(func(tx *gorm.DB) error {
-		username, err := ssoFreeHandle(tx, ssoHandle(email))
-		if err != nil {
-			return err
+	// Pick the username before the transaction so the transaction only
+	// writes: a read-then-write SQLite transaction fails with "database is
+	// locked" when another connection writes meanwhile, ignoring the busy
+	// timeout. A concurrent first visit taking the same name trips the
+	// unique index; retry once with a fresh name.
+	for attempt := 0; attempt < 2; attempt++ {
+		username, ferr := ssoFreeHandle(store.DB, ssoHandle(email))
+		if ferr != nil {
+			err = ferr
+			break
 		}
+		account.ID, detail.ID = 0, 0
 		account.Username = username
 		account.Handle = username
-		if res := tx.Create(&detail).Error; res != nil {
-			return res
+		err = store.DB.Transaction(func(tx *gorm.DB) error {
+			if res := tx.Create(&detail).Error; res != nil {
+				return res
+			}
+			account.AccountDetailID = detail.ID
+			if res := tx.Create(&account).Error; res != nil {
+				return res
+			}
+			return tx.Create(&store.SSOIdentity{Email: email, AccountID: account.ID}).Error
+		})
+		if err == nil {
+			break
 		}
-		account.AccountDetailID = detail.ID
-		if res := tx.Create(&account).Error; res != nil {
-			return res
-		}
-		return tx.Create(&store.SSOIdentity{Email: email, AccountID: account.ID}).Error
-	})
+	}
 	if err != nil {
 		os.Remove(path)
 		// a concurrent first visit may have linked the email already
@@ -197,7 +209,7 @@ func ssoAccount(email string, name string) (*store.Account, error) {
 	return &account, nil
 }
 
-//SetSSOAccess exchanges a verified outpost identity for a one-time access code
+// SetSSOAccess exchanges a verified outpost identity for a one-time access code
 func SetSSOAccess(w http.ResponseWriter, r *http.Request) {
 	secret := ssoSecret()
 	if len(secret) == 0 {

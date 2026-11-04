@@ -11,7 +11,7 @@ import (
 var DB *gorm.DB;
 
 func SetPath(storePath string, transformPath string) {
-  db, err := gorm.Open(sqlite.Open(storePath + "/databag.db"), &gorm.Config{
+  db, err := gorm.Open(sqlite.Open(storePath + "/databag.db?_busy_timeout=5000"), &gorm.Config{
     Logger: logger.Default.LogMode(logger.Silent),
   })
   if err != nil {
