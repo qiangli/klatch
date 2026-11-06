@@ -51,6 +51,40 @@ export function useAccess() {
     updateState({ host: appNode(window.location.host, window.location.pathname), secure: protocol === 'https:' })
   }, [])
 
+  // Single sign-on through the outpost proxy (elephant shaping): exchange the
+  // signed cloudbox identity for a one-time access code. Off the proxy the
+  // server answers 401/404 and the username/password form stays as it was.
+  useEffect(() => {
+    const { mode, host, secure } = state
+    if (mode !== 'account' || !host) {
+      return
+    }
+    let cancelled = false
+    const ssoLogin = async () => {
+      try {
+        const response = await fetch(`http${secure ? 's' : ''}://${host}/account/sso`, { method: 'POST', credentials: 'same-origin' })
+        if (!response.ok || cancelled) {
+          return
+        }
+        const token = await response.json()
+        if (typeof token === 'string' && token && !cancelled) {
+          updateState({ loading: true })
+          await app.actions.accountAccess(host, secure, token)
+        }
+      } catch (err) {
+        console.log(err)
+      } finally {
+        if (!cancelled) {
+          updateState({ loading: false })
+        }
+      }
+    }
+    ssoLogin()
+    return () => {
+      cancelled = true
+    }
+  }, [state.mode, state.host, state.secure])
+
   useEffect(() => {
     const { username, token, host, secure, mode } = state
     if (mode === 'create') {

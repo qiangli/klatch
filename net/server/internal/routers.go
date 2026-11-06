@@ -56,6 +56,13 @@ var endpoints = routes{
 	},
 
 	route{
+		"SetSSOAccess",
+		strings.ToUpper("Post"),
+		"/account/sso",
+		SetSSOAccess,
+	},
+
+	route{
 		"AddAccountAuthentication",
 		strings.ToUpper("Post"),
 		"/account/auth",
