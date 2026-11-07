@@ -5,13 +5,13 @@ import (
   "gorm.io/gorm"
   "gorm.io/gorm/logger"
   "gorm.io/gorm/clause"
-  "gorm.io/driver/sqlite"
+  "github.com/glebarez/sqlite"
 )
 
 var DB *gorm.DB;
 
 func SetPath(storePath string, transformPath string) {
-  db, err := gorm.Open(sqlite.Open(storePath + "/databag.db?_busy_timeout=5000"), &gorm.Config{
+  db, err := gorm.Open(sqlite.Open(storePath + "/databag.db?_pragma=busy_timeout(5000)"), &gorm.Config{
     Logger: logger.Default.LogMode(logger.Silent),
   })
   if err != nil {
@@ -52,4 +52,3 @@ func SetPath(storePath string, transformPath string) {
 
   DB = db
 }
-
