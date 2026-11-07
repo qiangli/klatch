@@ -3,13 +3,14 @@ id: 69c61bc5fbe4
 kind: enhancement
 title: Swap Klatch to a pure-Go SQLite driver (CGO_ENABLED=0, enables Windows)
 seq: 2827
-status: todo
+status: done
 priority: p1
 labels:
     - build
     - windows
     - sqlite
 created: 2026-11-07T03:13:49.370663Z
+closed: 2026-11-07T03:16:45.103492Z
 ---
 
 Problem: net/server/internal/store/alloc.go opens the store through gorm.io/driver/sqlite, which uses the cgo driver github.com/mattn/go-sqlite3, so every Klatch build needs CGO_ENABLED=1 and a C compiler. Klatch v1.2.6 therefore ships linux/darwin only and Windows hosts keep running the old Klatch container (bashy plan S563 F2). bashy itself is pure Go (modernc.org/sqlite).
