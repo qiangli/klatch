@@ -23,7 +23,8 @@ export async function scope(api: API, input: any): Promise<API> {
   const profile = await api.request(path + '/profile');
   const detail = await api.request(path + '/detail');
   if (detail.status !== 'connected' || !detail.token) throw new Failure('CONTACT_NOT_CONNECTED');
-  return new API({server: remoteServer(profile.node, api.session.server), token: `${api.session.guid}.${detail.token}`, guid: api.session.guid}, 'contact');
+  // Contact tokens address the peer account; retain the local GUID for authorship checks.
+  return new API({server: remoteServer(profile.node, api.session.server), token: `${required(profile,'guid')}.${detail.token}`, guid: api.session.guid}, 'contact');
 }
 export function messageData(detail: any, key?: string): any {
   const data = responseJSON(detail.data || '{}');

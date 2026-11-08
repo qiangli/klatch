@@ -47,9 +47,9 @@ test('app base paths survive API routes, trailing slashes and remote contact sco
   const routes=[];
   globalThis.fetch=async url=>{
     routes.push(url.origin+url.pathname);
-    if(url.pathname.endsWith('/profile')) return Response.json({node:'remote.test/other/app/'});
+    if(url.pathname.endsWith('/profile')) return Response.json({node:'remote.test/other/app/',guid:'peer'});
     if(url.pathname.endsWith('/detail')) return Response.json({status:'connected',token:'contact-secret'});
-    assert.equal(url.searchParams.get('contact'),'owner.contact-secret');
+    assert.equal(url.searchParams.get('contact'),'peer.contact-secret');
     return Response.json([]);
   };
   await execute('conversations-list',{cardId:'friend'},session);
@@ -228,9 +228,9 @@ test('contact watch resyncs remote snapshots on local SDK card revisions and rec
   let connections=0,revision=1,sawRevision=false,sawReconnect=false;
   const controller=new AbortController();const deadline=setTimeout(()=>controller.abort(),7000);t.after(()=>clearTimeout(deadline));
   globalThis.fetch=async url=>{
-    if(url.pathname.endsWith('/profile')) {assert.equal(url.origin,owner);return Response.json({node:'https://remote.test/remote/app'});}
+    if(url.pathname.endsWith('/profile')) {assert.equal(url.origin,owner);return Response.json({node:'https://remote.test/remote/app',guid:'peer'});}
     if(url.pathname.endsWith('/detail')) return Response.json({status:'connected',token:'contact-token'});
-    assert.equal(url.href,'https://remote.test/remote/app/content/channels?types=%5B%22sealed%22%2C%22superbasic%22%5D&viewRevision=1&contact=owner.contact-token');
+    assert.equal(url.href,'https://remote.test/remote/app/content/channels?types=%5B%22sealed%22%2C%22superbasic%22%5D&viewRevision=1&contact=peer.contact-token');
     return Response.json([{id:'remote-channel',revision}]);
   };
   server.on('connection',(socket,request)=>{
@@ -250,4 +250,29 @@ test('contact watch resyncs remote snapshots on local SDK card revisions and rec
     if(connections>=2){sawReconnect=true;controller.abort();}
   },controller.signal);
   assert.ok(sawRevision);assert.ok(sawReconnect);
+});
+
+test('peer-owned reads and sends use target contact identity while authorship stays local',async t=>{
+  const {session}=await fixture(t);const previous=globalThis.fetch;t.after(()=>{globalThis.fetch=previous;});
+  const writes=[];let profileGuid='peer';
+  globalThis.fetch=async(url,options)=>{
+    if(url.pathname.endsWith('/profile')) return Response.json({node:'https://remote.test/app',guid:profileGuid});
+    if(url.pathname.endsWith('/cards/friend/detail')) return Response.json({status:'connected',token:'contact-secret'});
+    assert.equal(url.origin,'https://remote.test');
+    assert.equal(url.searchParams.get('contact'),'peer.contact-secret');
+    assert.equal(url.searchParams.has('agent'),false);
+    if(url.pathname.endsWith('/topics/t/detail')) return Response.json({data:{topicDetail:{guid:'owner',dataType:'superbasictopic',data:'{"text":"old","assets":[]}'}}});
+    if(url.pathname.endsWith('/detail')) return Response.json({dataType:'superbasic',data:'{"subject":"peer room"}'});
+    writes.push({url,options});return Response.json({id:'t'});
+  };
+  const input={cardId:'friend',channelId:'c',topicId:'t',assistant:'Ada',text:'hello peer'};
+  assert.equal((await execute('conversations-show',input,session)).data.subject,'peer room');
+  assert.deepEqual(await execute('messages-send',input,session),{id:'t'});
+  await execute('messages-edit',input,session);
+  assert.deepEqual(writes.map(({options})=>options.method),['POST','PUT']);
+  for(const {options} of writes) assert.equal(JSON.parse(JSON.parse(options.body).data).text,'[Assistant: Ada] hello peer');
+  assert.equal((await loadSession(session)).guid,'owner');
+  profileGuid=undefined;
+  await assert.rejects(execute('conversations-show',input,session),{message:'INVALID_INPUT'});
+  assert.equal(writes.length,2);
 });

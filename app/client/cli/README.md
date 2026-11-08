@@ -32,7 +32,8 @@ Earlier draft announcements using `data` as the envelope key are superseded.
 IDs are opaque server IDs, never display names or list indexes. Empty IDs and
 the dot segments `.` and `..` are rejected. `cardId` on
 content commands selects a connected contact's remote owner scope; omit for
-owned content. `channelId`, `topicId`, `assetId` retain their server meanings.
+owned content. Contact authentication uses the target profile GUID; the local
+session GUID remains the author identity for edit/delete checks. `channelId`, `topicId`, `assetId` retain their server meanings.
 The result retains API object shapes and IDs; list results are arrays.
 
 | Command | JSON input fields (question mark means optional) |
@@ -101,7 +102,7 @@ Do not blindly retry. Foreground socket reconnect is the sole automatic reconnec
 ## Verification evidence
 
 The focused gate (`npm test`) compiles TypeScript, bundles the existing SDK
-Connection and RSA dependency, then runs fifteen Node tests. The remote Node 22.15.0 gate passed 15/15
+Connection and RSA dependency, then runs sixteen Node tests. The remote Node 22.15.0 gate passed 16/16
 with zero failures, cancellations or skips. Coverage includes app login/MFA
 payloads, private session permissions and symlink refusal, mandatory attribution,
 non-retried transport failure, author ownership, attachment byte round-trip and
@@ -111,5 +112,6 @@ API requests, remote contact scope, and socket reconnect/resync. HTTP routes use
 a real loopback WebSocket server. Additional regressions cover split UTF-8,
 byte limits for stdin/private files, dot-segment IDs, malformed server JSON,
 uncertain write failures, and contact snapshots on local card revisions and
-reconnect (with a separate remote HTTP scope). This is not evidence of live-account end-to-end
+reconnect (with a separate remote HTTP scope). Peer-owned read/send/edit coverage
+uses distinct local and target GUIDs and verifies local authorship is preserved. This is not evidence of live-account end-to-end
 or Bash# wrapper acceptance. Dependency install audit reported zero vulnerabilities.
