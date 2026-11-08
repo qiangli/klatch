@@ -57,6 +57,11 @@ The result retains API object shapes and IDs; list results are arrays.
 | attachments-download | channelId, topicId, assetId, path, cardId?, sealPassword? |
 | watch | channelId?, cardId?, sealPassword?, count?, begin?, end?, revision? |
 
+Server URLs may include an app mount path, for example
+`https://example.test/proxy/app`, with or without a trailing slash. Login, API
+requests, remote contact servers and watch retain that prefix. Credentials, query
+strings and fragments are forbidden in server URLs.
+
 Login uses `/account/apps`, including its existing MFA challenge behavior.
 On `MFA_REQUIRED_OR_INVALID`, explicitly invoke login again with a code supplied
 through private JSON. Logout revokes the app session before removing its file.
@@ -88,11 +93,12 @@ Do not blindly retry. Foreground socket reconnect is the sole automatic reconnec
 ## Verification evidence
 
 The focused gate (`npm test`) compiles TypeScript, bundles the existing SDK
-Connection and RSA dependency, then runs ten Node tests. The remote Node 22.15.0
-run passed 10/10 with zero failures or skips. Coverage includes app login/MFA
+Connection and RSA dependency, then runs eleven Node tests. The remote Node 22.15.0
+run passed 11/11 with zero failures or skips. Coverage includes app login/MFA
 payloads, private session permissions and symlink refusal, mandatory attribution,
 non-retried transport failure, author ownership, attachment byte round-trip and
 no-overwrite behavior, SDK socket reconnect/resync/abort, seal unlock, RSA channel
-key recovery and encrypted topic decoding. HTTP routes use fixtures; watch uses
+key recovery and encrypted topic decoding. Proxy-prefix regressions cover login,
+API requests, remote contact scope, and socket reconnect/resync. HTTP routes use fixtures; watch uses
 a real loopback WebSocket server. This is not evidence of live-account end-to-end
 or Bash# wrapper acceptance. Dependency install audit reported zero vulnerabilities.

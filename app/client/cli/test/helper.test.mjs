@@ -30,6 +30,33 @@ test('transport never retries and exposes only a stable failure code',async()=>{
   assert.throws(()=>serverURL('http://example.test'));
   assert.throws(()=>serverURL('https://user:password@example.test'));
 });
+test('app base paths survive API routes, trailing slashes and remote contact scope',async t=>{
+  const {session}=await fixture(t);const previous=globalThis.fetch;t.after(()=>{globalThis.fetch=previous;});
+  for (const suffix of ['', '/']) {
+    assert.equal(serverURL('https://example.test/proxy/app'+suffix),'https://example.test/proxy/app');
+    const api=new API({server:'https://example.test/proxy/app'+suffix,guid:'owner',token:'secret'},'agent',async url=>{
+      assert.equal(url.pathname,'/proxy/app/content/channels');
+      assert.equal(url.searchParams.get('agent'),'secret');
+      return Response.json([]);
+    });
+    await api.request('/content/channels');
+  }
+  await saveSession(session,{server:'https://example.test/proxy/app/',guid:'owner',token:'secret'});
+  const routes=[];
+  globalThis.fetch=async url=>{
+    routes.push(url.origin+url.pathname);
+    if(url.pathname.endsWith('/profile')) return Response.json({node:'remote.test/other/app/'});
+    if(url.pathname.endsWith('/detail')) return Response.json({status:'connected',token:'contact-secret'});
+    assert.equal(url.searchParams.get('contact'),'owner.contact-secret');
+    return Response.json([]);
+  };
+  await execute('conversations-list',{cardId:'friend'},session);
+  assert.deepEqual(routes,[
+    'https://example.test/proxy/app/contact/cards/friend/profile',
+    'https://example.test/proxy/app/contact/cards/friend/detail',
+    'https://remote.test/other/app/content/channels',
+  ]);
+});
 test('seal unlock interoperates with stored PKCS1 and fails closed',()=>{
   const pair=generateKeyPairSync('rsa',{modulusLength:2048});
   const privateKey=pair.privateKey.export({format:'der',type:'pkcs1'}).toString('base64');
@@ -59,15 +86,15 @@ test('login sends MFA through app API and persists only app session',async t=>{
   const previous=globalThis.fetch;
   t.after(()=>{globalThis.fetch=previous;});
   globalThis.fetch=async(url,options)=>{
-    assert.equal(url.pathname,'/account/apps');assert.equal(url.searchParams.get('code'),'123456');
+    assert.equal(url.pathname,'/proxy/app/account/apps');assert.equal(url.searchParams.get('code'),'123456');
     assert.equal(options.method,'POST');assert.ok(options.headers.Credentials.startsWith('Basic '));
     return Response.json({guid:'owner',appToken:'NEW_TOKEN'});
   };
-  assert.deepEqual(await execute('auth-login',{server:'https://example.test',username:'alice',password:'password',code:'123456'},session),{guid:'owner',server:'https://example.test'});
-  assert.deepEqual(JSON.parse(await readFile(session,'utf8')),{server:'https://example.test',guid:'owner',token:'NEW_TOKEN'});
+  assert.deepEqual(await execute('auth-login',{server:'https://example.test/proxy/app/',username:'alice',password:'password',code:'123456'},session),{guid:'owner',server:'https://example.test/proxy/app'});
+  assert.deepEqual(JSON.parse(await readFile(session,'utf8')),{server:'https://example.test/proxy/app',guid:'owner',token:'NEW_TOKEN'});
   for (const status of [403,405]) {
     globalThis.fetch=async()=>new Response(null,{status});
-    await assert.rejects(execute('auth-login',{server:'https://example.test',username:'alice',password:'password'},session),{message:'MFA_REQUIRED_OR_INVALID'});
+    await assert.rejects(execute('auth-login',{server:'https://example.test/proxy/app/',username:'alice',password:'password'},session),{message:'MFA_REQUIRED_OR_INVALID'});
     assert.equal((await loadSession(session)).token,'NEW_TOKEN');
   }
 });
@@ -123,16 +150,16 @@ test('watch SDK reconnects, resyncs snapshots, and closes on abort',async t=>{
   const server=new WebSocketServer({port:0,host:'127.0.0.1'});
   await new Promise(resolve=>server.once('listening',resolve));
   t.after(()=>new Promise(resolve=>{for(const socket of server.clients)socket.terminate();server.close(resolve);}));
-  await saveSession(session,{server:`http://127.0.0.1:${server.address().port}`,guid:'owner',token:'SECRET_TOKEN'});
+  await saveSession(session,{server:`http://127.0.0.1:${server.address().port}/proxy/app/`,guid:'owner',token:'SECRET_TOKEN'});
   let connections=0,snapshots=0;
   const controller=new AbortController();
   const deadline=setTimeout(()=>controller.abort(),7000);t.after(()=>clearTimeout(deadline));
-  server.on('connection',socket=>{connections++;socket.once('message',bytes=>{
+  server.on('connection',(socket,request)=>{assert.equal(request.url,'/proxy/app/status?mode=ring');connections++;socket.once('message',bytes=>{
     assert.equal(JSON.parse(bytes).AppToken,'SECRET_TOKEN');
     socket.send(JSON.stringify({revision:{channels:connections}}));
     if(connections===1)setTimeout(()=>socket.close(),30);
   });});
-  globalThis.fetch=async()=>Response.json([{id:'stable-channel'}]);
+  globalThis.fetch=async url=>{assert.equal(url.pathname,'/proxy/app/content/channels');return Response.json([{id:'stable-channel'}]);};
   await watch({},session,event=>{if(event.event==='snapshot'){snapshots++;assert.equal(event.result[0].id,'stable-channel');if(connections>=2)controller.abort();}},controller.signal);
   assert.ok(connections>=2);assert.ok(snapshots>=2);
 });

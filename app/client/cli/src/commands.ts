@@ -2,7 +2,7 @@ import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { JSEncrypt } from './rsa.js';
-import { API, Failure, required, attributed, serverURL, id, unlock, channelKey, encrypt, decrypt, type Session } from './core.js';
+import { API, Failure, required, attributed, serverURL, appURL, id, unlock, channelKey, encrypt, decrypt, type Session } from './core.js';
 import { loadSession, saveSession } from './storage.js';
 
 export const commands = ['auth-login','auth-status','auth-logout','seal-unlock','contacts-list','contacts-invite','contacts-accept','conversations-list','conversations-show','conversations-create','conversations-rename','conversations-leave','members-list','members-add','members-remove','messages-list','messages-show','messages-send','messages-edit','messages-delete','attachments-upload','attachments-download','watch'];
@@ -51,7 +51,7 @@ export async function execute(command: string, input: any, sessionPath: string):
   if (command === 'auth-login') {
     const server = serverURL(required(input,'server'));
     const auth = Buffer.from(`${required(input,'username')}:${required(input,'password')}`).toString('base64');
-    const url = new URL('/account/apps',server);
+    const url = appURL(server, '/account/apps');
     url.search = new URLSearchParams({appName:'Klatch CLI',appVersion:'0.1.0',platform:'node',deviceToken:'',pushType:'', ...(input.mfa || input.code ? {code: String(input.mfa || input.code)} : {})}).toString();
     let response: Response;
     try { response = await fetch(url,{method:'POST',headers:{Authorization:'Basic '+auth,Credentials:'Basic '+auth},body:'[]',redirect:'error',signal:AbortSignal.timeout(30000)}); }

@@ -10,9 +10,13 @@ export function required(input: any, key: string): string {
 }
 export function serverURL(server: string): string {
   const url = new URL(server);
-  if (url.username || url.password || url.search || url.hash || url.pathname !== '/' ||
+  if (url.username || url.password || url.search || url.hash ||
     (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) throw new Failure('INVALID_SERVER');
-  return url.origin;
+  return url.href.replace(/\/+$/, '');
+}
+// API routes are relative to the configured app mount, including leading-slash routes.
+export function appURL(server: string, path: string): URL {
+  return new URL(serverURL(server) + '/' + path.replace(/^\/+/, ''));
 }
 export function attributed(input: any): string {
   const name = required(input, 'assistant');
@@ -52,7 +56,7 @@ export type Session = { server: string; token: string; guid: string };
 export class API {
   constructor(public session: Session, public auth = 'agent', private transport: typeof fetch = fetch) {}
   async request(path: string, method = 'GET', body?: unknown, query: Record<string, string> = {}, raw = false): Promise<any> {
-    const url = new URL(path, this.session.server);
+    const url = appURL(this.session.server, path);
     url.search = new URLSearchParams({...query, ...(this.auth ? {[this.auth]: this.session.token} : {})}).toString();
     let response: Response;
     try {

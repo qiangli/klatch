@@ -27,7 +27,7 @@ export async function watch(input:any, sessionPath:string, emit:(data:any)=>void
   const url=new URL(session.server);
   // Connection uses the browser WebSocket interface, supplied by ws in Node.
   (globalThis as any).WebSocket = function(url:string) { return safeSocket(url); };
-  const connection=new Connection({info(){},warn(){},error(){}},session.token,url.host,url.protocol === 'https:');
+  const connection=new Connection({info(){},warn(){},error(){}},session.token,url.host + url.pathname.replace(/\/$/, ''),url.protocol === 'https:');
   let pending=false, syncing=false, stopped=false;
   let failure:unknown;
   let finish!:()=>void;
