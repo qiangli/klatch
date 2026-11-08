@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { readInput, INPUT_LIMIT } from './input.js';
 import { privateRead } from './storage.js';
 import { Failure } from './core.js';
 import { commands, execute, redact } from './commands.js';
@@ -29,9 +30,9 @@ async function main() {
   let text='';
   if (options.input === '-') {
     if (process.stdin.isTTY) throw new Failure('JSON_INPUT_REQUIRED');
-    for await (const chunk of process.stdin) { text+=chunk; if (text.length>1024*1024) throw new Failure('INPUT_TOO_LARGE'); }
+    text=await readInput(process.stdin);
   } else text=await privateRead(options.input);
-  if (text.length>1024*1024) throw new Failure('INPUT_TOO_LARGE');
+  if (Buffer.byteLength(text)>INPUT_LIMIT) throw new Failure('INPUT_TOO_LARGE');
   const input=JSON.parse(text || '{}');
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Failure('INVALID_INPUT');
   const emit=(result:any)=>process.stdout.write(JSON.stringify({ok:true,result:redact(result)})+'\n');

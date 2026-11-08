@@ -24,6 +24,10 @@ export function safeSocket(url: string): WebSocket {
 }
 export async function watch(input:any, sessionPath:string, emit:(data:any)=>void, signal:AbortSignal):Promise<void> {
   const session=await loadSession(sessionPath);
+  // The status endpoint authenticates app sessions, not contact tokens.
+  // Remote changes notify this account's card revision (NotifyChannelRevision);
+  // SDK Session also drives contact sync from that local revision stream.
+  // execute() below resolves cardId to the remote scope for every snapshot.
   const url=new URL(session.server);
   // Connection uses the browser WebSocket interface, supplied by ws in Node.
   (globalThis as any).WebSocket = function(url:string) { return safeSocket(url); };

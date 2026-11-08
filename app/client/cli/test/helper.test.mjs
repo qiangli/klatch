@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync, pbkdf2Sync } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { API, attributed, encrypt, decrypt, unlock, channelKey, serverURL } from '../dist/core.js';
+import { API, attributed, encrypt, decrypt, unlock, channelKey, serverURL, id } from '../dist/core.js';
 import { execute, redact } from '../dist/commands.js';
 import { saveSession, loadSession, privateRead } from '../dist/storage.js';
 
@@ -25,8 +25,10 @@ test('attribution is mandatory and cannot inject another prefix line',()=>{
 test('transport never retries and exposes only a stable failure code',async()=>{
   let calls=0;
   const api=new API({server:'https://example.test',guid:'x',token:'secret'},'agent',async()=>{calls++;throw Error('secret URL');});
-  await assert.rejects(api.request('/content/channels','POST',{}),{message:'NETWORK_ERROR'});
+  await assert.rejects(api.request('/content/channels','POST',{}),{message:'WRITE_OUTCOME_UNKNOWN'});
   assert.equal(calls,1);
+  await assert.rejects(api.request('/content/channels'),{message:'NETWORK_ERROR'});
+  assert.equal(calls,2);
   assert.throws(()=>serverURL('http://example.test'));
   assert.throws(()=>serverURL('https://user:password@example.test'));
 });
@@ -178,4 +180,74 @@ test('sealed channel keys and messages match SDK wire representation',async()=>{
   const topic={dataType:'sealedtopic',data:JSON.stringify(encrypt(JSON.stringify({message}),key))};
   assert.deepEqual(messageData(topic,key),message);
   assert.throws(()=>messageData(topic),{message:'SEAL_LOCKED'});
+});
+
+test('input preserves split UTF-8 and enforces a byte bound for stdin and files',async t=>{
+  const { readInput, INPUT_LIMIT }=await import('../dist/input.js');
+  const bytes=Buffer.from(JSON.stringify({text:'café 😀 漢字'}));
+  async function* split() { for (const byte of bytes) yield Buffer.from([byte]); }
+  assert.equal(await readInput(split()),bytes.toString('utf8'));
+  async function* oversized() { yield Buffer.from('é'.repeat(INPUT_LIMIT/2)); yield Buffer.from('x'); }
+  await assert.rejects(readInput(oversized()),{message:'INPUT_TOO_LARGE'});
+  const {dir}=await fixture(t);const path=join(dir,'large.json');
+  await writeFile(path,Buffer.from('é'.repeat(INPUT_LIMIT/2+1)),{mode:0o600});
+  await assert.rejects(privateRead(path),{message:'INPUT_TOO_LARGE'});
+  const result=spawnSync(process.execPath,['dist/main.js','auth-status'],{input:Buffer.from('é'.repeat(INPUT_LIMIT/2+1)),encoding:'utf8'});
+  assert.equal(JSON.parse(result.stderr).error.code,'INPUT_TOO_LARGE');
+});
+test('opaque IDs cannot normalize into mount traversal',async t=>{
+  const {session}=await fixture(t);
+  for (const channelId of ['', '.', '..']) await assert.rejects(execute('conversations-show',{channelId},session),{message:'INVALID_INPUT'});
+  await assert.rejects(execute('conversations-list',{cardId:''},session),{message:'INVALID_INPUT'});
+  for (const value of ['', '.', '..']) assert.throws(()=>id(value),{message:'INVALID_INPUT'});
+  for (const value of ['a/b','%2e%2e','../x','雪']) {
+    const url=new URL('https://example.test/proxy/app/content/channels/'+id(value)+'/detail');
+    assert.equal(url.pathname,'/proxy/app/content/channels/'+encodeURIComponent(value)+'/detail');
+  }
+});
+test('invalid response JSON is distinct from input JSON and interrupted writes',async t=>{
+  const {session}=await fixture(t);const previous=globalThis.fetch;t.after(()=>{globalThis.fetch=previous;});
+  globalThis.fetch=async()=>new Response('{broken');
+  const api=new API({server:'https://example.test',guid:'owner',token:'secret'});
+  await assert.rejects(api.request('/content/channels'),{message:'INVALID_RESPONSE'});
+  await assert.rejects(execute('auth-login',{server:'https://example.test',username:'user',password:'secret'},session),{message:'INVALID_RESPONSE'});
+  let calls=0;
+  globalThis.fetch=async()=>{calls++;return {ok:true,arrayBuffer:async()=>{throw Error('secret');}};};
+  const interrupted=new API({server:'https://example.test',guid:'owner',token:'secret'});
+  await assert.rejects(interrupted.request('/content/channels','POST',{}),{message:'WRITE_OUTCOME_UNKNOWN'});
+  assert.equal(calls,1);
+});
+test('contact watch resyncs remote snapshots on local SDK card revisions and reconnect',async t=>{
+  const { WebSocketServer }=await import('ws');const {watch}=await import('../dist/watch.js');
+  const {session}=await fixture(t);const previous=globalThis.fetch;t.after(()=>{globalThis.fetch=previous;});
+  const server=new WebSocketServer({port:0,host:'127.0.0.1'});
+  await new Promise(resolve=>server.once('listening',resolve));
+  t.after(()=>new Promise(resolve=>{for(const socket of server.clients)socket.terminate();server.close(resolve);}));
+  const owner=`http://127.0.0.1:${server.address().port}`;
+  await saveSession(session,{server:owner+'/local/app',guid:'owner',token:'SECRET_TOKEN'});
+  let connections=0,revision=1,sawRevision=false,sawReconnect=false;
+  const controller=new AbortController();const deadline=setTimeout(()=>controller.abort(),7000);t.after(()=>clearTimeout(deadline));
+  globalThis.fetch=async url=>{
+    if(url.pathname.endsWith('/profile')) {assert.equal(url.origin,owner);return Response.json({node:'https://remote.test/remote/app'});}
+    if(url.pathname.endsWith('/detail')) return Response.json({status:'connected',token:'contact-token'});
+    assert.equal(url.href,'https://remote.test/remote/app/content/channels?types=%5B%22sealed%22%2C%22superbasic%22%5D&viewRevision=1&contact=owner.contact-token');
+    return Response.json([{id:'remote-channel',revision}]);
+  };
+  server.on('connection',(socket,request)=>{
+    connections++;assert.equal(request.url,'/local/app/status?mode=ring');
+    socket.once('message',bytes=>{
+      assert.deepEqual(JSON.parse(bytes),{AppToken:'SECRET_TOKEN'});
+      socket.send(JSON.stringify({revision:{card:revision}}));
+      if(connections===1)setTimeout(()=>{revision=2;socket.send(JSON.stringify({revision:{card:2}}));},60);
+    });
+  });
+  await watch({cardId:'friend'},session,event=>{
+    if(event.event!=='snapshot')return;
+    assert.equal(event.result[0].id,'remote-channel');
+    if(event.result[0].revision===2 && connections===1 && !sawRevision){
+      sawRevision=true;for(const socket of server.clients)socket.close();
+    }
+    if(connections>=2){sawReconnect=true;controller.abort();}
+  },controller.signal);
+  assert.ok(sawRevision);assert.ok(sawReconnect);
 });

@@ -2,6 +2,7 @@ import { constants } from 'node:fs';
 import { open, mkdir, rename, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { readInput, INPUT_LIMIT } from './input.js';
 import { Failure, serverURL, type Session } from './core.js';
 
 export async function privateRead(path: string): Promise<string> {
@@ -9,7 +10,8 @@ export async function privateRead(path: string): Promise<string> {
   try {
     const stat = await file.stat();
     if (!stat.isFile() || (process.platform !== 'win32' && ((stat.mode & 0o077) !== 0 || stat.uid !== process.getuid!()))) throw new Failure('UNSAFE_FILE');
-    return await file.readFile('utf8');
+    if (stat.size > INPUT_LIMIT) throw new Failure('INPUT_TOO_LARGE');
+    return await readInput(file.createReadStream({autoClose:false}));
   } finally { await file.close(); }
 }
 export async function loadSession(path: string): Promise<Session> {

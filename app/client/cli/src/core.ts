@@ -53,20 +53,30 @@ export function channelKey(detail: any, seal?: {publicKey: string; privateKey: s
   } catch { throw new Failure('SEAL_UNLOCK_FAILED'); }
 }
 export type Session = { server: string; token: string; guid: string };
+export function responseJSON(text: string): any {
+  try { return text ? JSON.parse(text) : null; }
+  catch { throw new Failure('INVALID_RESPONSE'); }
+}
 export class API {
   constructor(public session: Session, public auth = 'agent', private transport: typeof fetch = fetch) {}
   async request(path: string, method = 'GET', body?: unknown, query: Record<string, string> = {}, raw = false): Promise<any> {
     const url = appURL(this.session.server, path);
     url.search = new URLSearchParams({...query, ...(this.auth ? {[this.auth]: this.session.token} : {})}).toString();
+    const networkCode = ['GET','HEAD'].includes(method.toUpperCase()) ? 'NETWORK_ERROR' : 'WRITE_OUTCOME_UNKNOWN';
     let response: Response;
     try {
       response = await this.transport(url, { method, redirect: 'error', signal: AbortSignal.timeout(30000),
         body: body instanceof FormData || typeof body === 'string' ? body : body === undefined ? undefined : JSON.stringify(body) });
-    } catch { throw new Failure('NETWORK_ERROR'); }
+    } catch { throw new Failure(networkCode); }
     if (!response.ok) throw new Failure(response.status === 401 ? 'AUTH_REQUIRED' : response.status === 403 ? 'FORBIDDEN' : response.status === 429 ? 'RATE_LIMITED' : 'HTTP_' + response.status);
-    if (raw) return Buffer.from(await response.arrayBuffer());
-    const text = await response.text();
-    return text ? JSON.parse(text) : null;
+    let bytes: ArrayBuffer;
+    try { bytes = await response.arrayBuffer(); }
+    catch { throw new Failure(networkCode); }
+    if (raw) return Buffer.from(bytes);
+    return responseJSON(Buffer.from(bytes).toString('utf8'));
   }
 }
-export const id = (value: string) => encodeURIComponent(value);
+export function id(value: string): string {
+  if (typeof value !== 'string' || !value || value === '.' || value === '..') throw new Failure('INVALID_INPUT');
+  return encodeURIComponent(value);
+}

@@ -2,7 +2,7 @@ import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { JSEncrypt } from './rsa.js';
-import { API, Failure, required, attributed, serverURL, appURL, id, unlock, channelKey, encrypt, decrypt, type Session } from './core.js';
+import { API, Failure, responseJSON, required, attributed, serverURL, appURL, id, unlock, channelKey, encrypt, decrypt, type Session } from './core.js';
 import { loadSession, saveSession } from './storage.js';
 
 export const commands = ['auth-login','auth-status','auth-logout','seal-unlock','contacts-list','contacts-invite','contacts-accept','conversations-list','conversations-show','conversations-create','conversations-rename','conversations-leave','members-list','members-add','members-remove','messages-list','messages-show','messages-send','messages-edit','messages-delete','attachments-upload','attachments-download','watch'];
@@ -18,7 +18,7 @@ async function sealFor(api: API, input: any) {
   return input.sealPassword ? unlock((await api.request('/account/status')).seal, required(input,'sealPassword')) : undefined;
 }
 export async function scope(api: API, input: any): Promise<API> {
-  if (!input.cardId) return api;
+  if (input.cardId === undefined) return api;
   const path = '/contact/cards/' + id(required(input,'cardId'));
   const profile = await api.request(path + '/profile');
   const detail = await api.request(path + '/detail');
@@ -26,10 +26,10 @@ export async function scope(api: API, input: any): Promise<API> {
   return new API({server: remoteServer(profile.node, api.session.server), token: `${api.session.guid}.${detail.token}`, guid: api.session.guid}, 'contact');
 }
 export function messageData(detail: any, key?: string): any {
-  const data = JSON.parse(detail.data || '{}');
+  const data = responseJSON(detail.data || '{}');
   if (detail.dataType !== 'sealedtopic') return data;
   if (!key) throw new Failure('SEAL_LOCKED');
-  return JSON.parse(decrypt(data.messageEncrypted, data.messageIv, key)).message;
+  return responseJSON(decrypt(data.messageEncrypted, data.messageIv, key)).message;
 }
 function subject(message: any, key?: string) {
   return {dataType: key ? 'sealedtopic' : 'superbasictopic', data: JSON.stringify(key ? encrypt(JSON.stringify({message}), key) : message)};
@@ -55,10 +55,12 @@ export async function execute(command: string, input: any, sessionPath: string):
     url.search = new URLSearchParams({appName:'Klatch CLI',appVersion:'0.1.0',platform:'node',deviceToken:'',pushType:'', ...(input.mfa || input.code ? {code: String(input.mfa || input.code)} : {})}).toString();
     let response: Response;
     try { response = await fetch(url,{method:'POST',headers:{Authorization:'Basic '+auth,Credentials:'Basic '+auth},body:'[]',redirect:'error',signal:AbortSignal.timeout(30000)}); }
-    catch { throw new Failure('NETWORK_ERROR'); }
+    catch { throw new Failure('WRITE_OUTCOME_UNKNOWN'); }
     if (!response.ok) throw new Failure(response.status === 401 ? 'AUTH_REQUIRED' : [403,405].includes(response.status) ? 'MFA_REQUIRED_OR_INVALID' : 'HTTP_'+response.status);
-    const login = await response.json() as any;
-    if (!login.appToken || !login.guid) throw new Failure('INVALID_RESPONSE');
+    let text: string;
+    try { text = await response.text(); } catch { throw new Failure('WRITE_OUTCOME_UNKNOWN'); }
+    const login = responseJSON(text);
+    if (!login?.appToken || !login?.guid) throw new Failure('INVALID_RESPONSE');
     await saveSession(sessionPath,{server,token:login.appToken,guid:login.guid});
     return {guid:login.guid,server};
   }
@@ -82,6 +84,7 @@ export async function execute(command: string, input: any, sessionPath: string):
     if (input.cardId) throw new Failure('OWNER_REQUIRED');
     const cards: string[] = input.cards || [];
     if (!Array.isArray(cards) || !cards.every(c=>typeof c === 'string')) throw new Failure('INVALID_INPUT');
+    cards.forEach(id);
     let data: any = {subject:required(input,'title')};
     let dataType = 'superbasic';
     if (input.sealed !== false) {
@@ -98,7 +101,7 @@ export async function execute(command: string, input: any, sessionPath: string):
   const path = '/content/channels/'+id(required(input,'channelId'));
   const detail = await target.request(path+'/detail');
   const key = channelKey(detail,seal);
-  const channelData = () => { const data=JSON.parse(detail.data); return key ? JSON.parse(decrypt(data.subjectEncrypted,data.subjectIv,key)) : data; };
+  const channelData = () => { const data=responseJSON(detail.data); return key ? responseJSON(decrypt(data.subjectEncrypted,data.subjectIv,key)) : data; };
   if (command === 'conversations-show') return {...redact(detail),channelId:input.channelId,data:channelData()};
   if (command === 'members-list') return {channelId:input.channelId,members:detail.members,cards:detail.contacts?.cards};
   if (command === 'conversations-leave') {
@@ -109,7 +112,7 @@ export async function execute(command: string, input: any, sessionPath: string):
     if (input.cardId) throw new Failure('OWNER_REQUIRED');
     if (command === 'conversations-rename') {
       let data = {...channelData(),subject:required(input,'title')};
-      if (key) { const encrypted=encrypt(JSON.stringify(data),key); data={...JSON.parse(detail.data),subjectEncrypted:encrypted.messageEncrypted,subjectIv:encrypted.messageIv}; }
+      if (key) { const encrypted=encrypt(JSON.stringify(data),key); data={...responseJSON(detail.data),subjectEncrypted:encrypted.messageEncrypted,subjectIv:encrypted.messageIv}; }
       await api.request(path+'/subject','PUT',{dataType:detail.dataType,data:JSON.stringify(data)});
     } else {
       const memberId=required(input,'memberCardId');
@@ -117,7 +120,7 @@ export async function execute(command: string, input: any, sessionPath: string):
         const publicKey=required(await api.request('/contact/cards/'+id(memberId)+'/profile'),'seal');
         const rsa=new JSEncrypt(); rsa.setPublicKey(publicKey); const sealedKey=rsa.encrypt(key);
         if (!sealedKey) throw new Failure('INVALID_SEAL');
-        const data=JSON.parse(detail.data); data.seals.push({publicKey,sealedKey});
+        const data=responseJSON(detail.data); data.seals.push({publicKey,sealedKey});
         await api.request(path+'/subject','PUT',{dataType:detail.dataType,data:JSON.stringify(data)});
       }
       await api.request(path+'/cards/'+id(memberId),command === 'members-add' ? 'PUT' : 'DELETE');

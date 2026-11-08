@@ -17,7 +17,7 @@ node app/client/cli/dist/main.js COMMAND [--input FILE|-] [--session FILE] [--js
 Input is one JSON object, from stdin through EOF by default, or a UTF-8 file.
 No positional payloads, inline secret flags, environment credential fallback,
 or interactive prompts. `--json` is accepted; output is always JSON.
-The maximum input is 1 MiB. Input files must be private regular files owned by
+The maximum input is 1 MiB of UTF-8 bytes (including for streamed stdin). Input files must be private regular files owned by
 the caller (0600 on POSIX); symlinks are refused. Session defaults to
 `~/.config/klatch/session.json`; use separate session files for separate accounts.
 Only the app token, server and account GUID persist, with atomic 0600 writes.
@@ -29,7 +29,8 @@ Failure: stderr `{ "ok": false, "error": { "code": "..." } }`, exit 1
 MFA codes or tokens are logged. Returned credential-named fields are removed.
 Earlier draft announcements using `data` as the envelope key are superseded.
 
-IDs are opaque server IDs, never display names or list indexes. `cardId` on
+IDs are opaque server IDs, never display names or list indexes. Empty IDs and
+the dot segments `.` and `..` are rejected. `cardId` on
 content commands selects a connected contact's remote owner scope; omit for
 owned content. `channelId`, `topicId`, `assetId` retain their server meanings.
 The result retains API object shapes and IDs; list results are arrays.
@@ -82,10 +83,17 @@ Watch is foreground NDJSON: each line has the success envelope with a result
 `{event:"status",status}` or `{event:"snapshot",result}`. Snapshots are current
 conversation or message lists, not exactly-once events. SDK reconnect triggers
 resynchronization; duplicates and gaps outside the requested window are possible.
+For contact scope, the socket stays on the local app session: remote changes
+notify the local account's card revision, as in SDK Session contact sync.
+Each snapshot resolves `cardId` and fetches from that contact's server.
 SIGINT/SIGTERM closes the connection. No background process is started.
 
 No HTTP request is automatically retried. A transport error after a write is an
-uncertain outcome: inspect server state before explicitly invoking another write.
+uncertain outcome (`WRITE_OUTCOME_UNKNOWN`, including interrupted response bodies):
+inspect server state before explicitly invoking another write. Read transport
+failures use `NETWORK_ERROR`; malformed server JSON uses `INVALID_RESPONSE`,
+while malformed input JSON uses `INVALID_JSON`. An invalid write response also
+does not establish whether the write committed.
 Contact invitation and attachment upload have multiple writes; a failure can leave
 a pending contact or uploaded block. Membership updates likewise are not atomic.
 Do not blindly retry. Foreground socket reconnect is the sole automatic reconnect.
@@ -93,12 +101,15 @@ Do not blindly retry. Foreground socket reconnect is the sole automatic reconnec
 ## Verification evidence
 
 The focused gate (`npm test`) compiles TypeScript, bundles the existing SDK
-Connection and RSA dependency, then runs eleven Node tests. The remote Node 22.15.0
-run passed 11/11 with zero failures or skips. Coverage includes app login/MFA
+Connection and RSA dependency, then runs fifteen Node tests. The remote Node 22.15.0 gate passed 15/15
+with zero failures, cancellations or skips. Coverage includes app login/MFA
 payloads, private session permissions and symlink refusal, mandatory attribution,
 non-retried transport failure, author ownership, attachment byte round-trip and
 no-overwrite behavior, SDK socket reconnect/resync/abort, seal unlock, RSA channel
 key recovery and encrypted topic decoding. Proxy-prefix regressions cover login,
 API requests, remote contact scope, and socket reconnect/resync. HTTP routes use fixtures; watch uses
-a real loopback WebSocket server. This is not evidence of live-account end-to-end
+a real loopback WebSocket server. Additional regressions cover split UTF-8,
+byte limits for stdin/private files, dot-segment IDs, malformed server JSON,
+uncertain write failures, and contact snapshots on local card revisions and
+reconnect (with a separate remote HTTP scope). This is not evidence of live-account end-to-end
 or Bash# wrapper acceptance. Dependency install audit reported zero vulnerabilities.
