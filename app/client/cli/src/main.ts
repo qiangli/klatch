@@ -23,7 +23,7 @@ export function parseArgs(args:string[]) {
 }
 async function main() {
   if (process.argv.length === 3 && ['--help','help'].includes(process.argv[2])) {
-    process.stdout.write(JSON.stringify({commands,usage:'klatch COMMAND [--input FILE|-] [--session FILE] [--json]'})+'\n'); return;
+    process.stdout.write(JSON.stringify({commands,usage:'klatch-helper COMMAND [--input FILE|-] [--session FILE] [--json]'})+'\n'); return;
   }
   const options=parseArgs(process.argv.slice(2));
   let text='';

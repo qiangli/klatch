@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes, createPrivateKey } from 'node:crypto';
-import { JSEncrypt } from 'jsencrypt';
+import { JSEncrypt } from './rsa.js';
 
 export class Failure extends Error {
   constructor(public code: string) { super(code); }

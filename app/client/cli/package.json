@@ -1,11 +1,11 @@
 {
-  "name": "@klatch/participant-cli",
+  "name": "@klatch/participant-helper",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": { "klatch": "dist/main.js" },
+  "bin": { "klatch-helper": "dist/main.js" },
   "engines": { "node": ">=22" },
   "scripts": { "build": "tsc && node build.mjs", "test": "npm run build && node --test test/*.test.mjs" },
-  "dependencies": { "eventemitter3": "5.0.1", "jsencrypt": "3.5.4", "ws": "8.18.3" },
+  "dependencies": { "eventemitter3": "5.0.1", "jsencrypt": "3.5.4", "ws": "8.22.2" },
   "devDependencies": { "esbuild": "0.25.5", "@types/node": "22.15.30", "@types/ws": "8.18.1", "typescript": "5.8.3" }
 }

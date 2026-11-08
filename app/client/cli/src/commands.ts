@@ -1,7 +1,7 @@
 import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { JSEncrypt } from 'jsencrypt';
+import { JSEncrypt } from './rsa.js';
 import { API, Failure, required, attributed, serverURL, id, unlock, channelKey, encrypt, decrypt, type Session } from './core.js';
 import { loadSession, saveSession } from './storage.js';
 
@@ -56,7 +56,7 @@ export async function execute(command: string, input: any, sessionPath: string):
     let response: Response;
     try { response = await fetch(url,{method:'POST',headers:{Authorization:'Basic '+auth,Credentials:'Basic '+auth},body:'[]',redirect:'error',signal:AbortSignal.timeout(30000)}); }
     catch { throw new Failure('NETWORK_ERROR'); }
-    if (!response.ok) throw new Failure(response.status === 401 ? 'AUTH_REQUIRED' : response.status === 403 ? 'MFA_REQUIRED_OR_INVALID' : 'HTTP_'+response.status);
+    if (!response.ok) throw new Failure(response.status === 401 ? 'AUTH_REQUIRED' : [403,405].includes(response.status) ? 'MFA_REQUIRED_OR_INVALID' : 'HTTP_'+response.status);
     const login = await response.json() as any;
     if (!login.appToken || !login.guid) throw new Failure('INVALID_RESPONSE');
     await saveSession(sessionPath,{server,token:login.appToken,guid:login.guid});
