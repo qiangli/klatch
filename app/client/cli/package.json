@@ -1,0 +1,11 @@
+{
+  "name": "@klatch/participant-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "klatch": "dist/main.js" },
+  "engines": { "node": ">=22" },
+  "scripts": { "build": "tsc", "test": "npm run build && node --test test/*.test.mjs" },
+  "dependencies": { "jsencrypt": "3.5.4", "ws": "8.18.3" },
+  "devDependencies": { "@types/node": "22.15.30", "@types/ws": "8.18.1", "typescript": "5.8.3" }
+}
