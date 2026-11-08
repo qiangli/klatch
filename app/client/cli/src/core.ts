@@ -53,7 +53,7 @@ export class API {
   constructor(public session: Session, public auth = 'agent', private transport: typeof fetch = fetch) {}
   async request(path: string, method = 'GET', body?: unknown, query: Record<string, string> = {}, raw = false): Promise<any> {
     const url = new URL(path, this.session.server);
-    url.search = new URLSearchParams({[this.auth]: this.session.token, ...query}).toString();
+    url.search = new URLSearchParams({...query, ...(this.auth ? {[this.auth]: this.session.token} : {})}).toString();
     let response: Response;
     try {
       response = await this.transport(url, { method, redirect: 'error', signal: AbortSignal.timeout(30000),
