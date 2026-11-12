@@ -12,20 +12,7 @@ import (
 	"sync"
 )
 
-// Team mode (elephant shaping, branch shape/elephant-sso). The satellite
-// decides who is on the team: the host owner shares klatch with a member's
-// email, cloudbox confirms the person is that email, and outpost signs it.
-// With KLATCH_SSO_TEAM=on, every account that signs in that way is
-// connected with every other single-sign-on account and added to one team
-// topic, owned by the host owner (Remote-Groups "admin") when they are the
-// first to sign in, otherwise by the earliest team member. It runs on each
-// single sign-on, so accounts created before team mode catch up on their
-// next visit. Contacts and topics use klatch's own handlers, exactly as a
-// client would, so nothing here changes the contact protocol.
-
-// SSOTeamEnv turns team mode on ("on", "true" or "1").
-const SSOTeamEnv = "KLATCH_SSO_TEAM"
-
+// Single sign-on teams are managed by the operator-pushed roster.
 // SSOTeamTopicEnv names the team topic (default "Team").
 const SSOTeamTopicEnv = "KLATCH_SSO_TEAM_TOPIC"
 
@@ -38,14 +25,6 @@ const CNFSSOTeamChannel = "sso_team_channel"
 const ssoTeamApp = "klatch-team"
 
 var ssoTeamLock sync.Mutex
-
-func ssoTeamEnabled() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(SSOTeamEnv))) {
-	case "on", "true", "1":
-		return true
-	}
-	return false
-}
 
 func ssoTeamTopic() string {
 	if topic := strings.TrimSpace(os.Getenv(SSOTeamTopicEnv)); topic != "" {
@@ -200,45 +179,34 @@ func teamTopic(agents *teamAgents, owner *store.Account, members []store.Account
 	return nil
 }
 
-// ssoTeamJoin connects account with the rest of the team and keeps the team
-// topic current. isOwner marks the host owner, who owns the team topic.
-func ssoTeamJoin(account *store.Account, isOwner bool) error {
-	if !ssoTeamEnabled() {
+// ssoTeamJoin repairs the roster mesh on sign-in. The caller holds ssoTeamLock.
+func ssoTeamJoin() error {
+	roster := getStrConfigValue(CNFSSORoster, "")
+	if roster == "" {
 		return nil
 	}
-	ssoTeamLock.Lock()
-	defer ssoTeamLock.Unlock()
-
-	var members []store.Account
-	if err := store.DB.Where("disabled = ? AND id IN (?)", false, store.DB.Model(&store.SSOIdentity{}).Select("account_id")).Order("id").Find(&members).Error; err != nil {
+	var admitted map[string]bool
+	if err := json.Unmarshal([]byte(roster), &admitted); err != nil {
 		return err
 	}
-
-	// The topic owner is chosen once and kept, so the topic never moves:
-	// the host owner when they are the first to sign in after team mode is
-	// on, otherwise the earliest team member.
-	if getStrConfigValue(CNFSSOTeamOwner, "") == "" && len(members) > 0 {
-		owner := members[0].GUID
-		if isOwner {
-			owner = account.GUID
-		}
-		if err := setStrConfigValue(CNFSSOTeamOwner, owner); err != nil {
-			return err
-		}
+	emails := make([]string, 0, len(admitted))
+	for email := range admitted {
+		emails = append(emails, email)
 	}
-
+	var members []store.Account
+	if err := store.DB.Where("disabled = ? AND id IN (?)", false,
+		store.DB.Model(&store.SSOIdentity{}).Select("account_id").Where("email IN ?", emails)).Order("id").Find(&members).Error; err != nil {
+		return err
+	}
 	agents := &teamAgents{tokens: map[string]string{}}
 	defer agents.close()
-
 	for i := range members {
-		if members[i].GUID == account.GUID {
-			continue
-		}
-		if err := teamConnect(agents, account, &members[i]); err != nil {
-			return err
+		for j := i + 1; j < len(members); j++ {
+			if err := teamConnect(agents, &members[i], &members[j]); err != nil {
+				return err
+			}
 		}
 	}
-
 	ownerGUID := getStrConfigValue(CNFSSOTeamOwner, "")
 	for i := range members {
 		if members[i].GUID == ownerGUID {

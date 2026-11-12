@@ -40,6 +40,7 @@ func NewRouter(path string) *mux.Router {
 }
 
 var endpoints = routes{
+ route{"SetSSORoster", "PUT", "/admin/sso/roster", SetSSORoster},
 
 	route{
 		"AddAccount",
