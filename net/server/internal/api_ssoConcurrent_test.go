@@ -15,10 +15,7 @@ import (
 // "database is locked".
 func TestSSOConcurrentFirstVisits(t *testing.T) {
 	t.Setenv(SSOSecretEnv, ssoTestSecret)
-	t.Setenv(SSOTeamEnv, "on")
-	store.DB.Where("1 = 1").Delete(&store.SSOIdentity{})
-	setStrConfigValue(CNFSSOTeamOwner, "")
-	setStrConfigValue(CNFSSOTeamChannel, "")
+	resetRoster(t)
 	t.Cleanup(func() {
 		store.DB.Model(&store.Account{}).Where("username LIKE ?", "crowd%").Update("searchable", false)
 	})
@@ -58,6 +55,11 @@ func TestSSOConcurrentFirstVisits(t *testing.T) {
 		}
 		seen[a.Username] = true
 	}
+	emails := []string{}
+	for i := 0; i < members; i++ {
+		emails = append(emails, fmt.Sprintf("crowd%d@example.com", i))
+	}
+	pushRoster(t, emails[0], emails[1:]...)
 	// every member is connected with every other one
 	for i := range accounts {
 		for j := range accounts {

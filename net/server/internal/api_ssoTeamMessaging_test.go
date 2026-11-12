@@ -13,10 +13,7 @@ import (
 // same contact-token path a Klatch client uses.
 func TestSSOTeamMessaging(t *testing.T) {
 	t.Setenv(SSOSecretEnv, ssoTestSecret)
-	t.Setenv(SSOTeamEnv, "on")
-	store.DB.Where("1 = 1").Delete(&store.SSOIdentity{})
-	setStrConfigValue(CNFSSOTeamOwner, "")
-	setStrConfigValue(CNFSSOTeamChannel, "")
+	resetRoster(t)
 	t.Cleanup(func() {
 		store.DB.Model(&store.Account{}).Where("username LIKE ?", "msg%").Update("searchable", false)
 	})
@@ -24,6 +21,7 @@ func TestSSOTeamMessaging(t *testing.T) {
 	owner := teamLogin(t, "msgowner@example.com", "admin")
 	b := teamLogin(t, "msgb@example.com", "user")
 	c := teamLogin(t, "msgc@example.com", "user")
+	pushRoster(t, "msgowner@example.com", "msgb@example.com", "msgc@example.com")
 	channelID := getStrConfigValue(CNFSSOTeamChannel, "")
 	if channelID == "" {
 		t.Fatal("no team topic")

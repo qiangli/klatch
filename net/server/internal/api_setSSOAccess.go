@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"databag/internal/store"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"github.com/theckman/go-securerandom"
 	"golang.org/x/crypto/bcrypt"
@@ -223,6 +224,21 @@ func SetSSOAccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Serialize admission with roster updates, including access-code creation.
+	ssoTeamLock.Lock()
+	defer ssoTeamLock.Unlock()
+	if roster := getStrConfigValue(CNFSSORoster, ""); roster != "" {
+		var admitted map[string]bool
+		if err := json.Unmarshal([]byte(roster), &admitted); err != nil {
+			ErrResponse(w, http.StatusInternalServerError, err)
+			return
+		}
+		if !admitted[email] {
+			ErrResponse(w, http.StatusForbidden, errors.New("not on roster"))
+			return
+		}
+	}
+
 	account, err := ssoAccount(email, r.Header.Get("Remote-Name"))
 	if err != nil {
 		ErrResponse(w, http.StatusInternalServerError, err)
@@ -234,7 +250,7 @@ func SetSSOAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// team mode: a failure here must not block the sign-in itself
-	if err := ssoTeamJoin(account, r.Header.Get("Remote-Groups") == "admin"); err != nil {
+	if err := ssoTeamJoin(); err != nil {
 		ErrMsg(err)
 	}
 

@@ -85,7 +85,8 @@ func TestMain(m *testing.M) {
 
 	go SendNotifications()
 
-	m.Run()
+	code := m.Run()
 
 	ExitNotifications()
+ os.Exit(code)
 }
